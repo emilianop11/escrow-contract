@@ -281,6 +281,9 @@ describe('Escrow', function () {
       await escrow.connect(wallet2).withdrawFromContract(1);
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
 
+      await escrow.connect(wallet3).withdrawFromContract(1);
+      expect(await anyToken.balanceOf(wallet3.address)).to.equal(1000);
+
     });
 
   })
