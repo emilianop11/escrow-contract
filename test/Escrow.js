@@ -286,5 +286,25 @@ describe('Escrow', function () {
 
     });
 
+    it('should not allow wallet 2 to retrieve funds if the contract didnt expire', async function () {
+      await escrow.connect(wallet1).createContract(2, [wallet2.address, wallet3.address], 365);
+      await escrow.connect(wallet2).adhereToContract(1, 100);
+      await escrow.connect(wallet3).adhereToContract(1, 100);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(900);
+      expect(await anyToken.balanceOf(wallet3.address)).to.equal(900);
+
+      await expect(escrow.connect(wallet2).withdrawFromContract(1)).to.be.revertedWith("contract is not redeemable yet");
+      
+      //hone hour
+      await ethers.provider.send('evm_increaseTime', [60 * 60]);
+      await expect(escrow.connect(wallet2).withdrawFromContract(1)).to.be.revertedWith("contract is not redeemable yet");
+      
+      //seven days
+      await ethers.provider.send('evm_increaseTime', [7 * 24 * 60 * 60]);
+      await ethers.provider.send('evm_mine');
+      await expect(escrow.connect(wallet2).withdrawFromContract(1)).to.be.revertedWith("contract is not redeemable yet");
+      await expect(escrow.connect(wallet3).withdrawFromContract(1)).to.be.revertedWith("contract is not redeemable yet");
+    });
+
   })
 })
