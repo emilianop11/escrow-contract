@@ -18,6 +18,11 @@ contract Escrow {
     uint256 withdrawalProportion;
   }
 
+  struct LockConfig {
+    address partyAddress;
+    uint256 amountToLock;
+  }
+
   struct Contract{
       uint256 _contractId;
       address createdBy;
@@ -28,6 +33,8 @@ contract Escrow {
       ContractParty[] involvedParties;
       // definition of which proportion of the locked funds can be withdrawn by each party when the contract is redeemable
       WithdrawalConfig[] withdrawalConfig;
+      // definition of how much each address must lock in the contract
+      LockConfig[] lockConfig;
   }
 
   using Counters for Counters.Counter;
@@ -108,7 +115,12 @@ contract Escrow {
     return cont.withdrawalConfig.length > 0;
   }
 
-  function hasAddressWithdrawProportionSet(uint256 contractId, address _address) public view returns(bool) {
+  function isLockConfigSet(uint256 contractId) public view returns(bool) {
+    Contract storage cont = _contracts[contractId];
+    return cont.lockConfig.length > 0;
+  }
+
+  function hasAddressWithdrawConfigSet(uint256 contractId, address _address) public view returns(bool) {
     Contract storage cont = _contracts[contractId];
     
     for (uint i = 0; i < cont.withdrawalConfig.length; i++) {
@@ -120,9 +132,19 @@ contract Escrow {
     return false;
   }
 
-  function getAddressWithdrawProportion(uint256 contractId, address _address) public view returns(uint256) {
+  function hasAddressLockConfigSet(uint256 contractId, address _address) public view returns(bool) {
+    Contract storage cont = _contracts[contractId];
     
-    require(hasAddressWithdrawProportionSet(contractId, _address), "withdrawal proportion setting must be set for address");
+    for (uint i = 0; i < cont.lockConfig.length; i++) {
+        if (cont.lockConfig[i].partyAddress == _address) {
+            return true;
+        }
+    }
+    return false;
+  }
+
+  function getAddressWithdrawProportion(uint256 contractId, address _address) public view returns(uint256) {
+    require(hasAddressWithdrawConfigSet(contractId, _address), "withdrawal proportion setting must be set for address");
     Contract storage cont = _contracts[contractId];
     
     for (uint i = 0; i < cont.withdrawalConfig.length; i++) {
@@ -130,7 +152,18 @@ contract Escrow {
             return cont.withdrawalConfig[i].withdrawalProportion;
         }
     }
+    return 0;
+  }
 
+  function getAddressLockConfig(uint256 contractId, address _address) public view returns(uint256) {
+    require(hasAddressLockConfigSet(contractId, _address), "lock config setting must be set for address");
+    Contract storage cont = _contracts[contractId];
+    
+    for (uint i = 0; i < cont.lockConfig.length; i++) {
+        if (cont.lockConfig[i].partyAddress == _address) {
+            return cont.lockConfig[i].amountToLock;
+        }
+    }
     return 0;
   }
 
@@ -142,7 +175,12 @@ contract Escrow {
     
     if (isWithdrawalProportionConfigSet(contractId)) {
       require(getWithdrawalProportionTotalForContract(contractId) == 1000000, "cant adhere to contract if proportion of withdrawal hasnt been fully configured");
-      require(hasAddressWithdrawProportionSet(contractId, msg.sender), "Cant join contract, withdrawal conditions have been set and address is not part of them");
+      require(hasAddressWithdrawConfigSet(contractId, msg.sender), "Cant join contract, withdrawal conditions have been set and address is not part of them");
+    }
+
+    if (isLockConfigSet(contractId)) {
+      require(hasAddressLockConfigSet(contractId, msg.sender), "Cant join contract, locking conditions have been set and address is not part of them");
+      require(getAddressLockConfig(contractId, msg.sender) == amountToLock, "Cant join contract, locking configuration has been set and amount to lock is different than the amount configured");
     }
 
     ERC20(warrantyTokenAddress).transferFrom(msg.sender, address(this), amountToLock);
@@ -273,14 +311,28 @@ contract Escrow {
     return total;
   }
 
-  function setWithdrawalProportionForContract(uint256 contractId, address _address, uint256 proportion) external {
+
+  function setLockConfigForContract(uint256 contractId, address _address, uint256 _amountToLock) external {
     Contract storage cont = _contracts[contractId];
+    require(cont.createdBy == msg.sender, "Contract can only be modified by its creator");
+    require(isContractInDraft(contractId), "lock config can only be set in a draft contract. A draft contract is a contract that hasnt been signed by any party yet.");
+    
+    require(!hasAddressLockConfigSet(contractId, _address), "address has already a configuration setup");
 
+    LockConfig memory conf = LockConfig({
+      partyAddress: _address,
+      amountToLock: _amountToLock
+    });
 
+    cont.lockConfig.push(conf);
+  }
+
+  function setWithdrawalConfigForContract(uint256 contractId, address _address, uint256 proportion) external {
+    Contract storage cont = _contracts[contractId];
     require(cont.createdBy == msg.sender, "Contract can only be modified by its creator");
     require(isContractInDraft(contractId), "proportion of withdrawal can only be set in a draft contract. A draft contract is a contract that hasnt been signed by any party yet.");
     require(proportion > 0 && proportion <= 1000000, "proportion must be a number greater than 0 and less or equal than 1 million");
-    require(!hasAddressWithdrawProportionSet(contractId, _address), "address has already a configuration setup");
+    require(!hasAddressWithdrawConfigSet(contractId, _address), "address has already a configuration setup");
     uint256 currentTotalProportion = getWithdrawalProportionTotalForContract(contractId);
     require((currentTotalProportion + proportion) <= 1000000, "total proportion of fund withdrawal cant exceed 100%");
 
