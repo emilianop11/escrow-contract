@@ -53,7 +53,7 @@ describe('Escrow', function () {
 
   describe('create contract', function () {
     it('should allow wallet 1 to create a contract between 2 parties', async function () {
-      await escrow.connect(wallet1).createContract(2, [], []);
+      await escrow.connect(wallet1).createContract(2, [], 1);
       const retrievedContractIdsForAddress = await escrow.connect(wallet1).getContractIdsForAddress();
       expect(retrievedContractIdsForAddress[0]).to.equal(undefined);
       const firstContract = await escrow.connect(wallet1).getContract(1);
@@ -81,7 +81,7 @@ describe('Escrow', function () {
      
       await expect(escrow.connect(wallet2).adhereToContract(11, 100)).to.be.revertedWith("Cant join contract. Contract has not been initialized");
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
-      await escrow.connect(wallet1).createContract(2, [], []);
+      await escrow.connect(wallet1).createContract(2, [], 1);
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
       
       //adhere wallet2 to contract
@@ -173,7 +173,7 @@ describe('Escrow', function () {
 
 
     it('should not allow wallet 3 to adhere to a contract that does have whitelisting', async function () {
-      await escrow.connect(wallet1).createContract(2, [wallet1.address, wallet2.address]);
+      await escrow.connect(wallet1).createContract(2, [wallet1.address, wallet2.address], 1);
       await expect(escrow.connect(wallet3).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
       await expect(escrow.connect(walletHacker).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
@@ -182,7 +182,7 @@ describe('Escrow', function () {
     });
 
     it('should allow wallet 2 to retrieve funds if the contract hasnt been fully signed', async function () {
-      await escrow.connect(wallet1).createContract(2, []);
+      await escrow.connect(wallet1).createContract(2, [], 1);
 
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
@@ -201,7 +201,7 @@ describe('Escrow', function () {
   describe('adhere to contract setting withdrawal proportions', function () {
     it('should check different conditions when wallet 2 and 3 try to adhere to a contract', async function () {
      
-      await escrow.connect(wallet1).createContract(2, [], []);
+      await escrow.connect(wallet1).createContract(2, [], 1);
       await expect(escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet2.address, 1e12)).to.be.revertedWith('proportion must be a number greater than 0 and less or equal than 1 million');
     
       await expect(escrow.connect(walletHacker).setWithdrawalProportionForContract(1, wallet2.address, 1e12)).to.be.revertedWith('Contract can only be modified by its creator');
@@ -227,7 +227,7 @@ describe('Escrow', function () {
     });
 
     it('should check that wallet 2 cant adhere if proportion doesnt reach 100%', async function () {
-      await escrow.connect(wallet1).createContract(2, [], []);
+      await escrow.connect(wallet1).createContract(2, [], 1);
       await escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet2.address, 300000);
       await escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet3.address, 300000);
       await expect(escrow.connect(wallet2).adhereToContract(1, 100)).to.be.revertedWith("cant adhere to contract if proportion of withdrawal hasnt been fully configured");
@@ -236,7 +236,7 @@ describe('Escrow', function () {
     it('should check that payments are correct using withdrawal proportion feature', async function () {
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
       expect(await anyToken.balanceOf(wallet3.address)).to.equal(1000);
-      await escrow.connect(wallet1).createContract(2, [], []);
+      await escrow.connect(wallet1).createContract(2, [], 1);
       await escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet2.address, 300000);
       await escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet3.address, 700000);
       await escrow.connect(wallet3).adhereToContract(1, 100);
@@ -259,4 +259,29 @@ describe('Escrow', function () {
       expect(await escrow.connect(wallet3).getTotalContractValue(1)).to.equal(200);
     });
   });
+
+
+  describe('check unlock time feature', function () {
+    it('should allow wallet 2 to retrieve funds if the contract expired, even if it didnt reach consensus', async function () {
+      await escrow.connect(wallet1).createContract(2, [wallet2.address, wallet3.address], 1);
+      await escrow.connect(wallet2).adhereToContract(1, 100);
+      await escrow.connect(wallet3).adhereToContract(1, 100);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(900);
+      expect(await anyToken.balanceOf(wallet3.address)).to.equal(900);
+
+      await expect(escrow.connect(wallet2).withdrawFromContract(1)).to.be.revertedWith("contract is not redeemable yet");
+      
+      //hone hour
+      await ethers.provider.send('evm_increaseTime', [60 * 60]);
+      await expect(escrow.connect(wallet2).withdrawFromContract(1)).to.be.revertedWith("contract is not redeemable yet");
+      
+      //seven days
+      await ethers.provider.send('evm_increaseTime', [7 * 24 * 60 * 60]);
+      await ethers.provider.send('evm_mine');
+      await escrow.connect(wallet2).withdrawFromContract(1);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+
+    });
+
+  })
 })

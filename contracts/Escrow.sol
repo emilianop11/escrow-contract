@@ -49,6 +49,8 @@ contract Escrow {
 
     Contract memory cont = getContract(contractId);
 
+    if (block.timestamp > cont.unlockTime) return true;
+
     for (uint i = 0; i < cont.involvedParties.length; i++) {
         if (!cont.involvedParties[i].approvedRelease) return false;
     }
@@ -246,12 +248,12 @@ contract Escrow {
     return total;
   }
 
-  function createContract(uint256 numberOfParties, address[] memory _whiteListedParties) external {
+  function createContract(uint256 numberOfParties, address[] memory _whiteListedParties, uint256 daysToUnlock) external {
     require(numberOfParties >= 2, 'Number of involved parties must be equal or greater than 2');
      _contractIdCounter.increment();
     uint256 contractId = _contractIdCounter.current();
     uint creationDate = block.timestamp;
-    uint unlockTime = creationDate + (1 * 365 days);
+    uint unlockTime = creationDate + (daysToUnlock * 1 days);
 
     Contract storage newContract = _contracts[contractId];
     newContract._contractId = contractId;
