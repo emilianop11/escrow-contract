@@ -2,7 +2,7 @@ const { expect } = require("chai");
 
 describe('Escrow', function () {
   beforeEach(async function() {
-    [owner, wallet1, wallet2, wallet3, walletHacker] = await ethers.getSigners();
+    [owner, wallet1, wallet2, wallet3, wallet4, walletHacker] = await ethers.getSigners();
     AnyToken = await ethers.getContractFactory('Any', owner);
     anyToken = await AnyToken.deploy();
     Escrow = await ethers.getContractFactory('Escrow', owner);
@@ -257,6 +257,16 @@ describe('Escrow', function () {
       await expect(escrow.connect(wallet2).withdrawFromContract(1)).to.be.revertedWith("all funds for this address have been withdrawn");
       await expect(escrow.connect(wallet3).withdrawFromContract(1)).to.be.revertedWith("all funds for this address have been withdrawn");
       expect(await escrow.connect(wallet3).getTotalContractValue(1)).to.equal(200);
+    });
+
+    it('should check boundary condition if withdraw proportion has been set and a non configured address tries to join', async function () {
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+      expect(await anyToken.balanceOf(wallet3.address)).to.equal(1000);
+      await escrow.connect(wallet1).createContract(2, [], 1);
+      await escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet2.address, 300000);
+      await escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet3.address, 700000);
+      await escrow.connect(wallet2).adhereToContract(1, 100);
+      await expect(escrow.connect(wallet4).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract, withdrawal conditions have been set and address is not part of them");
     });
   });
 
