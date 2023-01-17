@@ -168,6 +168,9 @@ contract Escrow {
   }
 
   function adhereToContract(uint256 contractId, uint256 amountToLock) public {
+    Contract storage cont = _contracts[contractId];
+    require(cont.numberOfParties != 0, "Cant join contract. Contract has not been initialized");
+    
     require(isAddressWhitelistedInContract(contractId), "Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
     require(!isContractCompletelySigned(contractId), "Cant join contract, it has already been signed by all involved parties");
     require(isCallerInvolvedInContract(contractId) == false, "Cant join contract, address has already signed this contract");
@@ -176,17 +179,17 @@ contract Escrow {
     if (isWithdrawalProportionConfigSet(contractId)) {
       require(getWithdrawalProportionTotalForContract(contractId) == 1000000, "cant adhere to contract if proportion of withdrawal hasnt been fully configured");
       require(hasAddressWithdrawConfigSet(contractId, msg.sender), "Cant join contract, withdrawal conditions have been set and address is not part of them");
+      require(cont.numberOfParties == cont.withdrawalConfig.length, "Cant join contract. Withdrawal configuration not complete. The amount of entries must match the number of parties defined in the contract");
     }
 
     if (isLockConfigSet(contractId)) {
       require(hasAddressLockConfigSet(contractId, msg.sender), "Cant join contract, locking conditions have been set and address is not part of them");
       require(getAddressLockConfig(contractId, msg.sender) == amountToLock, "Cant join contract, locking configuration has been set and amount to lock is different than the amount configured");
+      require(cont.numberOfParties == cont.lockConfig.length, "Cant join contract. Lock configuration not complete. The amount of entries must match the number of parties defined in the contract");
     }
 
     ERC20(warrantyTokenAddress).transferFrom(msg.sender, address(this), amountToLock);
-    Contract storage cont = _contracts[contractId];
-    require(cont.numberOfParties != 0, "Cant join contract. Contract has not been initialized");
-
+    
     ContractParty memory newContractParty = ContractParty({
         partyAddress: msg.sender,
         _lockedAmount: amountToLock,

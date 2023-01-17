@@ -327,6 +327,10 @@ describe('Escrow', function () {
       await escrow.connect(wallet1).createContract(2, [], 1);
       await expect(escrow.connect(wallet2).setLockConfigForContract(1, wallet2.address, 57)).to.be.revertedWith("Contract can only be modified by its creator");
       await escrow.connect(wallet1).setLockConfigForContract(1, wallet2.address, 57);
+
+      // try to adhere before lock config is finished
+      await expect(escrow.connect(wallet2).adhereToContract(1, 57)).to.be.revertedWith("Cant join contract. Lock configuration not complete. The amount of entries must match the number of parties defined in the contract");
+
       await escrow.connect(wallet1).setLockConfigForContract(1, wallet3.address, 43);
       await expect(escrow.connect(wallet1).setLockConfigForContract(1, wallet4.address, 100)).to.be.revertedWith("cant set further lock configs. Contract has defined a total amount of parties and adding one more config would exceed that amount");
       
