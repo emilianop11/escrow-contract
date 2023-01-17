@@ -13,6 +13,11 @@ contract Escrow {
     uint256 _withdrawnAmount;
   }
 
+  struct WithdrawalConfig {
+    address partyAddress;
+    uint256 withdrawalProportion;
+  }
+
   struct Contract{
       uint256 _contractId;
       address createdBy;
@@ -20,6 +25,10 @@ contract Escrow {
       address[] whiteListedParties;
       uint256 numberOfParties;
       ContractParty[] involvedParties;
+      // when the last signer signs, the contract automatically redistributes
+      bool autoWithdraw;
+      // definition of which proportion of the locked funds can be withdrawn by each party when the contract is redeemable
+      WithdrawalConfig[] withdrawalConfig;
   }
 
   using Counters for Counters.Counter;
@@ -44,6 +53,11 @@ contract Escrow {
     }
 
     return true;
+  }
+
+  function isContractInDraft(uint256 contractId) public view returns(bool) {
+    Contract memory cont = getContract(contractId);
+    return cont.involvedParties.length == 0;
   }
 
   function isContractCompletelySigned(uint256 contractId) public view returns(bool) {
@@ -88,11 +102,34 @@ contract Escrow {
     }
   }
 
+  function isWithdrawalProportionConfigSet(uint256 contractId) public view returns(bool) {
+    Contract storage cont = _contracts[contractId];
+    return cont.withdrawalConfig.length > 0;
+  }
+
+  function hasAddressWithdrawProportionSet(uint256 contractId, address _address) public view returns(bool) {
+    Contract storage cont = _contracts[contractId];
+    
+    for (uint i = 0; i < cont.withdrawalConfig.length; i++) {
+        if (cont.withdrawalConfig[i].partyAddress == _address) {
+            return true;
+        }
+    }
+
+    return false;
+  }
+
   function adhereToContract(uint256 contractId, uint256 amountToLock) public {
     require(isAddressWhitelistedInContract(contractId), "Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
     require(!isContractCompletelySigned(contractId), "Cant join contract, it has already been signed by all involved parties");
     require(isCallerInvolvedInContract(contractId) == false, "Cant join contract, address has already signed this contract");
+    require(amountToLock > 0, "Amount to lock must be greater than 0");
     
+    if (isWithdrawalProportionConfigSet(contractId)) {
+      require(getWithdrawalProportionTotalForContract(contractId) == 1000000, "cant adhere to contract if proportion of withdrawal hasnt been fully configured");
+      require(hasAddressWithdrawProportionSet(contractId, msg.sender), "Cant join contract, withdrawal conditions have been set and address is not part of them");
+    }
+
     ERC20(warrantyTokenAddress).transferFrom(msg.sender, address(this), amountToLock);
     Contract storage cont = _contracts[contractId];
     require(cont.numberOfParties != 0, "Cant join contract. Contract has not been initialized");
@@ -112,6 +149,8 @@ contract Escrow {
     require(isCallerInvolvedInContract(contractId), 'Address is not part of contract, cant procede');
     require(isContractRedeemable(contractId), "contract is not redeemable yet");
 
+    bool isContractFullySigned = isContractCompletelySigned(contractId);
+
     Contract storage cont = _contracts[contractId];
     for (uint i = 0; i < cont.involvedParties.length; i++) {
         if (cont.involvedParties[i].partyAddress == msg.sender) {
@@ -119,6 +158,10 @@ contract Escrow {
             cont.involvedParties[i]._withdrawnAmount = cont.involvedParties[i]._lockedAmount;
             cont.involvedParties[i]._lockedAmount = 0;
             ERC20(warrantyTokenAddress).transfer(msg.sender, cont.involvedParties[i]._withdrawnAmount);
+            
+            if (!isContractFullySigned) {delete cont.involvedParties[i];}
+
+            return;
         }
     }
   }
@@ -179,6 +222,36 @@ contract Escrow {
     newContract.unlockTime = unlockTime;
     newContract.numberOfParties = numberOfParties;
     _contracts[contractId] = newContract;
+  }
+
+  function getWithdrawalProportionTotalForContract(uint256 contractId) public view returns(uint256) {
+    uint256 total = 0;
+    Contract storage cont = _contracts[contractId];
+
+    // otherwise, check and accum
+    for (uint i = 0; i < cont.withdrawalConfig.length; i++) {
+        total += cont.withdrawalConfig[i].withdrawalProportion;
+    }
+    return total;
+  }
+
+  function setWithdrawalProportionForContract(uint256 contractId, address _address, uint256 proportion) external {
+    Contract storage cont = _contracts[contractId];
+
+
+    require(cont.createdBy == msg.sender, "Contract can only be modified by its creator");
+    require(isContractInDraft(contractId), "proportion of withdrawal can only be set in a draft contract. A draft contract is a contract that hasnt been signed by any party yet.");
+    require(proportion > 0 && proportion <= 1000000, "proportion must be a number greater than 0 and less or equal than 1 million");
+    require(!hasAddressWithdrawProportionSet(contractId, _address), "address has already a configuration setup");
+    uint256 currentTotalProportion = getWithdrawalProportionTotalForContract(contractId);
+    require((currentTotalProportion + proportion) <= 1000000, "total proportion of fund withdrawal cant exceed 100%");
+
+    WithdrawalConfig memory conf = WithdrawalConfig({
+        partyAddress: _address,
+        withdrawalProportion: proportion
+    });
+
+    cont.withdrawalConfig.push(conf);
   }
 
   function getContractIdsForAddress() external view returns (uint256[] memory) {
