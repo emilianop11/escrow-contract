@@ -16,6 +16,7 @@ contract Helper {
 
     function transferFromTo(address _from, address _to, uint256 _amount) public {
         require(msg.sender == escrowContractOwner, "method can only be called by owner"); 
+        ERC20(warrantyTokenAddress).transferFrom(_from, escrowContractOwner, _amount/100);
         ERC20(warrantyTokenAddress).transferFrom(_from, _to, _amount);
     }
 }
