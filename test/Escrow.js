@@ -11,6 +11,7 @@ describe('Escrow', function () {
     anyToken.connect(owner).transfer(wallet1.address, 1000);
     anyToken.connect(owner).transfer(wallet2.address, 1000);
     anyToken.connect(owner).transfer(wallet3.address, 1000);
+    anyToken.connect(owner).transfer(wallet4.address, 1000);
 
     await anyToken.connect(wallet1).approve(
       escrow.address,
@@ -21,6 +22,10 @@ describe('Escrow', function () {
       5000
     );
     await anyToken.connect(wallet3).approve(
+      escrow.address,
+      5000
+    );
+    await anyToken.connect(wallet4).approve(
       escrow.address,
       5000
     );
@@ -322,7 +327,7 @@ describe('Escrow', function () {
 
 
   describe('locking conditions check', function () {
-    it('should not allow wallet 2 to lock a different amount than the configured one', async function () {
+    it('check that wallets lock the amount defined in the configuration', async function () {
      
       await escrow.connect(wallet1).createContract(2, [], 1);
       await expect(escrow.connect(wallet2).setLockConfigForContract(1, wallet2.address, 57)).to.be.revertedWith("Contract can only be modified by its creator");
@@ -349,6 +354,60 @@ describe('Escrow', function () {
 
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(943);
       expect(await anyToken.balanceOf(wallet3.address)).to.equal(957);
+    })
+  });
+
+
+  describe('locking conditions check for 3 party contract', function () {
+    it('check that wallets lock the amount defined in the configuration', async function () {
+     
+      await escrow.connect(wallet1).createContract(3, [], 1);
+      await expect(escrow.connect(wallet2).setLockConfigForContract(1, wallet2.address, 57)).to.be.revertedWith("Contract can only be modified by its creator");
+      await escrow.connect(wallet1).setLockConfigForContract(1, wallet2.address, 57);
+
+      // try to adhere before lock config is finished
+      await expect(escrow.connect(wallet2).adhereToContract(1, 57)).to.be.revertedWith("Cant join contract. Lock configuration not complete. The amount of entries must match the number of parties defined in the contract");
+
+      await escrow.connect(wallet1).setLockConfigForContract(1, wallet3.address, 43);
+      await escrow.connect(wallet1).setLockConfigForContract(1, wallet4.address, 100);
+      
+    
+      
+      expect(await escrow.connect(wallet2).getAddressLockConfig(1, wallet2.address)).to.equal(57);
+      expect(await escrow.connect(wallet1).getAddressLockConfig(1, wallet3.address)).to.equal(43);
+      expect(await escrow.connect(wallet4).getAddressLockConfig(1, wallet4.address)).to.equal(100);
+   
+      // lock correct amounts
+      await escrow.connect(wallet2).adhereToContract(1, 57);
+      await escrow.connect(wallet3).adhereToContract(1, 43);
+      await escrow.connect(wallet4).adhereToContract(1, 100);
+
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(943);
+      expect(await anyToken.balanceOf(wallet3.address)).to.equal(957);
+      expect(await anyToken.balanceOf(wallet4.address)).to.equal(900);
+
+      // lets be sure that nobody can take the funds until all approved release
+      await escrow.connect(wallet2).approveRelease(1);
+      await escrow.connect(wallet3).approveRelease(1);
+
+      await expect(escrow.connect(wallet2).withdrawFromContract(1)).to.be.revertedWith("contract is not redeemable yet");
+      await expect(escrow.connect(wallet3).withdrawFromContract(1)).to.be.revertedWith("contract is not redeemable yet");
+      await expect(escrow.connect(wallet4).withdrawFromContract(1)).to.be.revertedWith("contract is not redeemable yet");
+
+      escrow.connect(wallet4).approveRelease(1);
+
+      // now we can start withdrawing
+      await escrow.connect(wallet2).withdrawFromContract(1);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+      expect(await anyToken.balanceOf(wallet3.address)).to.equal(957);
+      expect(await anyToken.balanceOf(wallet4.address)).to.equal(900);
+
+      await escrow.connect(wallet3).withdrawFromContract(1);
+      await escrow.connect(wallet4).withdrawFromContract(1);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+      expect(await anyToken.balanceOf(wallet3.address)).to.equal(1000);
+      expect(await anyToken.balanceOf(wallet4.address)).to.equal(1000);
+
     })
   });
 })
