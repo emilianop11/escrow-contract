@@ -164,6 +164,7 @@ describe('Escrow', function () {
     it('should not allow wallet 3 to adhere to a contract that does have whitelisting', async function () {
       await escrow.connect(wallet1).createContract(2, [wallet1.address, wallet2.address]);
       await expect(escrow.connect(wallet3).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
+      await expect(escrow.connect(walletHacker).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
       await escrow.connect(wallet2).adhereToContract(1, 100);
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(true);
