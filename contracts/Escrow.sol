@@ -316,7 +316,7 @@ contract Escrow {
     Contract storage cont = _contracts[contractId];
     require(cont.createdBy == msg.sender, "Contract can only be modified by its creator");
     require(isContractInDraft(contractId), "lock config can only be set in a draft contract. A draft contract is a contract that hasnt been signed by any party yet.");
-    
+    require(cont.numberOfParties > cont.lockConfig.length, "cant set further lock configs. Contract has defined a total amount of parties and adding one more config would exceed that amount");
     require(!hasAddressLockConfigSet(contractId, _address), "address has already a configuration setup");
 
     LockConfig memory conf = LockConfig({
@@ -331,6 +331,7 @@ contract Escrow {
     Contract storage cont = _contracts[contractId];
     require(cont.createdBy == msg.sender, "Contract can only be modified by its creator");
     require(isContractInDraft(contractId), "proportion of withdrawal can only be set in a draft contract. A draft contract is a contract that hasnt been signed by any party yet.");
+    require(cont.numberOfParties > cont.lockConfig.length, "cant set further withdrawal configs. Contract has defined a total amount of parties and adding one more config would exceed that amount");
     require(proportion > 0 && proportion <= 1000000, "proportion must be a number greater than 0 and less or equal than 1 million");
     require(!hasAddressWithdrawConfigSet(contractId, _address), "address has already a configuration setup");
     uint256 currentTotalProportion = getWithdrawalProportionTotalForContract(contractId);
