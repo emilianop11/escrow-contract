@@ -40,7 +40,7 @@ describe('Helper', function () {
       expect(await anyToken.balanceOf(wallet6.address)).to.equal(899);
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1100);
       expect(await anyToken.balanceOf(owner.address)).to.equal(46001);
-      //await expect(helper.connect(owner).transferFromTo(wallet6.address, wallet2.address, 100)).to.be.revertedWith("ERC20: transfer amount exceeds balance");
+
     });
   });
 });
