@@ -53,7 +53,7 @@ describe('Escrow', function () {
 
   describe('create contract', function () {
     it('should allow wallet 1 to create a contract between 2 parties', async function () {
-      await escrow.connect(wallet1).createContract(2);
+      await escrow.connect(wallet1).createContract(2, []);
       const retrievedContractIdsForAddress = await escrow.connect(wallet1).getContractIdsForAddress();
       expect(retrievedContractIdsForAddress[0]).to.equal(undefined);
       const firstContract = await escrow.connect(wallet1).getContract(1);
@@ -71,7 +71,7 @@ describe('Escrow', function () {
 
 
   describe('adhere to contract', function () {
-    it('should allow wallet 2 to adhere to the already created contrat', async function () {
+    it('should allow wallet 2 and 3 to adhere to a contract that doesnt have whitelisting', async function () {
      
       // check balances before we start
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
@@ -80,7 +80,7 @@ describe('Escrow', function () {
      
       await expect(escrow.connect(wallet2).adhereToContract(11, 100)).to.be.revertedWith("Cant join contract. Contract has not been initialized");
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
-      await escrow.connect(wallet1).createContract(2);
+      await escrow.connect(wallet1).createContract(2, []);
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
       
       //adhere wallet2 to contract
@@ -158,6 +158,15 @@ describe('Escrow', function () {
 
       expect(await escrow.connect(walletHacker).getLockedAmountForContract(1)).to.equal(0);
       expect(await escrow.connect(walletHacker).getWithdrawnAmountForContract(1)).to.equal(200);      
+    });
+
+
+    it('should not allow wallet 3 to adhere to a contract that does have whitelisting', async function () {
+      await escrow.connect(wallet1).createContract(2, [wallet1.address, wallet2.address]);
+      await expect(escrow.connect(wallet3).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
+      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
+      await escrow.connect(wallet2).adhereToContract(1, 100);
+      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(true);
     });
   })
 })

@@ -17,6 +17,7 @@ contract Escrow {
       uint256 _contractId;
       address createdBy;
       uint unlockTime;
+      address[] whiteListedParties;
       uint256 numberOfParties;
       ContractParty[] involvedParties;
   }
@@ -51,6 +52,16 @@ contract Escrow {
     return cont.numberOfParties == cont.involvedParties.length;
   }
 
+  function isAddressWhitelistedInContract(uint256 contractId) public view returns(bool) {
+    Contract storage cont = _contracts[contractId];
+    if (cont.whiteListedParties.length == 0) return true;
+
+    for (uint i = 0; i < cont.whiteListedParties.length; i++) {
+        if (cont.whiteListedParties[i] == msg.sender) return true;
+    }
+    return false;
+  }
+
   function isCallerInvolvedInContract(uint256 contractId) public view returns(bool) {
     Contract storage cont = _contracts[contractId];
 
@@ -78,6 +89,7 @@ contract Escrow {
   }
 
   function adhereToContract(uint256 contractId, uint256 amountToLock) public {
+    require(isAddressWhitelistedInContract(contractId), "Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
     require(!isContractCompletelySigned(contractId), "Cant join contract, it has already been signed by all involved parties");
     require(isCallerInvolvedInContract(contractId) == false, "Cant join contract, address has already signed this contract");
     
@@ -153,7 +165,7 @@ contract Escrow {
     return total;
   }
 
-  function createContract(uint256 numberOfParties) external {
+  function createContract(uint256 numberOfParties, address[] memory _whiteListedParties) external {
     require(numberOfParties >= 2, 'Number of involved parties must be equal or greater than 2');
      _contractIdCounter.increment();
     uint256 contractId = _contractIdCounter.current();
@@ -163,6 +175,7 @@ contract Escrow {
     Contract storage newContract = _contracts[contractId];
     newContract._contractId = contractId;
     newContract.createdBy = msg.sender;
+    newContract.whiteListedParties = _whiteListedParties;
     newContract.unlockTime = unlockTime;
     newContract.numberOfParties = numberOfParties;
     _contracts[contractId] = newContract;
