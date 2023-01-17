@@ -22,12 +22,14 @@ contract Escrow {
   }
 
   using Counters for Counters.Counter;
+  address warrantyTokenAddress;
   Counters.Counter private _contractIdCounter;
   address escrowContractOwner;
   mapping(uint256 => Contract) _contracts;
   mapping(address => uint256[]) _addressesToContract;
 
-  constructor() {
+  constructor(address _tokenAddress) {
+    warrantyTokenAddress = _tokenAddress;
     escrowContractOwner = msg.sender;
   }
 
@@ -79,6 +81,7 @@ contract Escrow {
     require(!isContractCompletelySigned(contractId), "Cant join contract, it has already been signed by all involved parties");
     require(isCallerInvolvedInContract(contractId) == false, "Cant join contract, address has already signed this contract");
     
+    ERC20(warrantyTokenAddress).transferFrom(msg.sender, address(this), amountToLock);
     Contract storage cont = _contracts[contractId];
     require(cont.numberOfParties != 0, "Cant join contract. Contract has not been initialized");
 
@@ -103,6 +106,7 @@ contract Escrow {
             require(cont.involvedParties[i]._lockedAmount > 0, "all funds for this address have been withdrawn");
             cont.involvedParties[i]._withdrawnAmount = cont.involvedParties[i]._lockedAmount;
             cont.involvedParties[i]._lockedAmount = 0;
+            ERC20(warrantyTokenAddress).transfer(msg.sender, cont.involvedParties[i]._withdrawnAmount);
         }
     }
   }
