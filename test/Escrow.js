@@ -65,7 +65,8 @@ describe('Escrow', function () {
       expect(await escrow.connect(wallet3).isCallerInvolvedInContract(1)).to.equal(false);
       expect(await escrow.connect(walletHacker).getLockedAmountForContract(1)).to.equal(0);
       expect(await escrow.connect(walletHacker).getWithdrawnAmountForContract(1)).to.equal(0);
-
+      expect(await escrow.connect(wallet2).getTotalContractValue(122)).to.equal(0);
+      expect(await escrow.connect(wallet2).getTotalContractValue(1)).to.equal(0);
     });
   });
 
@@ -180,7 +181,7 @@ describe('Escrow', function () {
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(true);
     });
 
-    it('should not allow wallet 2 to get their funds if contract not fully signed', async function () {
+    it('should allow wallet 2 to retrieve funds if the contract hasnt been fully signed', async function () {
       await escrow.connect(wallet1).createContract(2, []);
 
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
@@ -188,15 +189,17 @@ describe('Escrow', function () {
       await escrow.connect(wallet2).adhereToContract(1, 100);
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(900);
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(true);
+      expect(await escrow.connect(wallet3).getTotalContractValue(1)).to.equal(100);
       await escrow.connect(wallet2).withdrawFromContract(1);
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
       expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet3).getTotalContractValue(1)).to.equal(0);
     });
   });
 
 
   describe('adhere to contract setting withdrawal proportions', function () {
-    it('should allow wallet 2 and 3 to adhere to a contract', async function () {
+    it('should check different conditions when wallet 2 and 3 try to adhere to a contract', async function () {
      
       await escrow.connect(wallet1).createContract(2, [], []);
       await expect(escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet2.address, 1e12)).to.be.revertedWith('proportion must be a number greater than 0 and less or equal than 1 million');
@@ -221,6 +224,35 @@ describe('Escrow', function () {
 
       expect(await escrow.connect(wallet2).isContractCompletelySigned(1), true);
 
-    })
+    });
+
+    it('should check that wallet 2 cant adhere if proportion doesnt reach 100%', async function () {
+      await escrow.connect(wallet1).createContract(2, [], []);
+      await escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet2.address, 300000);
+      await escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet3.address, 300000);
+      await expect(escrow.connect(wallet2).adhereToContract(1, 100)).to.be.revertedWith("cant adhere to contract if proportion of withdrawal hasnt been fully configured");
+    });
+
+    it('should check that payments are correct using withdrawal proportion feature', async function () {
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+      expect(await anyToken.balanceOf(wallet3.address)).to.equal(1000);
+      await escrow.connect(wallet1).createContract(2, [], []);
+      await escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet2.address, 300000);
+      await escrow.connect(wallet1).setWithdrawalProportionForContract(1, wallet3.address, 700000);
+      await escrow.connect(wallet3).adhereToContract(1, 100);
+      await escrow.connect(wallet2).adhereToContract(1, 100);
+      await escrow.connect(wallet2).approveRelease(1);
+      await escrow.connect(wallet3).approveRelease(1);
+
+      expect(await escrow.connect(wallet3).getTotalContractValue(1)).to.equal(200);
+      
+
+      await escrow.connect(wallet2).withdrawFromContract(1);
+      await escrow.connect(wallet3).withdrawFromContract(1);
+
+
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(960);
+      expect(await anyToken.balanceOf(wallet3.address)).to.equal(1040);
+    });
   });
 })

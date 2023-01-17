@@ -21,6 +21,7 @@ contract Escrow {
   struct Contract{
       uint256 _contractId;
       address createdBy;
+      uint256 totalContractValue;
       uint unlockTime;
       address[] whiteListedParties;
       uint256 numberOfParties;
@@ -119,6 +120,20 @@ contract Escrow {
     return false;
   }
 
+  function getAddressWithdrawProportion(uint256 contractId, address _address) public view returns(uint256) {
+    
+    require(hasAddressWithdrawProportionSet(contractId, _address), "withdrawal proportion setting must be set for address");
+    Contract storage cont = _contracts[contractId];
+    
+    for (uint i = 0; i < cont.withdrawalConfig.length; i++) {
+        if (cont.withdrawalConfig[i].partyAddress == _address) {
+            return cont.withdrawalConfig[i].withdrawalProportion;
+        }
+    }
+
+    return 0;
+  }
+
   function adhereToContract(uint256 contractId, uint256 amountToLock) public {
     require(isAddressWhitelistedInContract(contractId), "Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
     require(!isContractCompletelySigned(contractId), "Cant join contract, it has already been signed by all involved parties");
@@ -142,6 +157,7 @@ contract Escrow {
     });
 
     cont.involvedParties.push(newContractParty);
+    cont.totalContractValue += amountToLock;
     _addressesToContract[msg.sender].push(cont._contractId);
   }
 
@@ -150,19 +166,41 @@ contract Escrow {
     require(isContractRedeemable(contractId), "contract is not redeemable yet");
 
     bool isContractFullySigned = isContractCompletelySigned(contractId);
-
     Contract storage cont = _contracts[contractId];
-    for (uint i = 0; i < cont.involvedParties.length; i++) {
+
+    if (!isWithdrawalProportionConfigSet(contractId)) {
+      for (uint i = 0; i < cont.involvedParties.length; i++) {
         if (cont.involvedParties[i].partyAddress == msg.sender) {
             require(cont.involvedParties[i]._lockedAmount > 0, "all funds for this address have been withdrawn");
             cont.involvedParties[i]._withdrawnAmount = cont.involvedParties[i]._lockedAmount;
             cont.involvedParties[i]._lockedAmount = 0;
             ERC20(warrantyTokenAddress).transfer(msg.sender, cont.involvedParties[i]._withdrawnAmount);
             
-            if (!isContractFullySigned) {delete cont.involvedParties[i];}
+            if (!isContractFullySigned) {
+              cont.totalContractValue -= cont.involvedParties[i]._withdrawnAmount;
+              delete cont.involvedParties[i];
+            }
 
             return;
         }
+      }
+    } else {
+      for (uint i = 0; i < cont.involvedParties.length; i++) {
+        if (cont.involvedParties[i].partyAddress == msg.sender) {
+            require(cont.involvedParties[i]._lockedAmount > 0, "all funds for this address have been withdrawn");
+            uint256 withdrawalProportion = getAddressWithdrawProportion(contractId, msg.sender);
+            cont.involvedParties[i]._withdrawnAmount = cont.totalContractValue * withdrawalProportion / 1000000;
+            cont.involvedParties[i]._lockedAmount = 0;
+            ERC20(warrantyTokenAddress).transfer(msg.sender, cont.involvedParties[i]._withdrawnAmount);
+            
+            if (!isContractFullySigned) {
+              cont.totalContractValue -= cont.involvedParties[i]._withdrawnAmount;
+              delete cont.involvedParties[i];
+            }
+
+            return;
+        }
+      }
     }
   }
 
@@ -256,5 +294,10 @@ contract Escrow {
 
   function getContractIdsForAddress() external view returns (uint256[] memory) {
     return _addressesToContract[msg.sender];  
+  }
+
+  function getTotalContractValue(uint256 contractId) external view returns (uint256) {
+    Contract storage cont = _contracts[contractId];
+    return cont.totalContractValue;
   }
 }
