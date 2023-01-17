@@ -26,8 +26,6 @@ contract Escrow {
       address[] whiteListedParties;
       uint256 numberOfParties;
       ContractParty[] involvedParties;
-      // when the last signer signs, the contract automatically redistributes
-      bool autoWithdraw;
       // definition of which proportion of the locked funds can be withdrawn by each party when the contract is redeemable
       WithdrawalConfig[] withdrawalConfig;
   }
