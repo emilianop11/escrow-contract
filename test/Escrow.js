@@ -250,9 +250,13 @@ describe('Escrow', function () {
       await escrow.connect(wallet2).withdrawFromContract(1);
       await escrow.connect(wallet3).withdrawFromContract(1);
 
-
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(960);
       expect(await anyToken.balanceOf(wallet3.address)).to.equal(1040);
+
+      //try to withdraw again
+      await expect(escrow.connect(wallet2).withdrawFromContract(1)).to.be.revertedWith("all funds for this address have been withdrawn");
+      await expect(escrow.connect(wallet3).withdrawFromContract(1)).to.be.revertedWith("all funds for this address have been withdrawn");
+      expect(await escrow.connect(wallet3).getTotalContractValue(1)).to.equal(200);
     });
   });
 })
