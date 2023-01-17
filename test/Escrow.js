@@ -410,4 +410,45 @@ describe('Escrow', function () {
 
     })
   });
+
+  describe('creator of contract is involved in the escrow', function () {
+    it('check that wallets lock the amount defined in the configuration', async function () {
+      await escrow.connect(wallet1).createContract(2, [], 1);
+      await expect(escrow.connect(wallet2).setLockConfigForContract(1, wallet2.address, 57)).to.be.revertedWith("Contract can only be modified by its creator");
+      await escrow.connect(wallet1).setLockConfigForContract(1, wallet2.address, 57);
+
+      // try to adhere before lock config is finished
+      await expect(escrow.connect(wallet2).adhereToContract(1, 57)).to.be.revertedWith("Cant join contract. Lock configuration not complete. The amount of entries must match the number of parties defined in the contract");
+
+      await escrow.connect(wallet1).setLockConfigForContract(1, wallet1.address, 43);
+      await expect(escrow.connect(wallet1).setLockConfigForContract(1, wallet4.address, 100)).to.be.revertedWith("cant set further lock configs. Contract has defined a total amount of parties and adding one more config would exceed that amount");
+      
+      await expect(escrow.connect(wallet4).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract, locking conditions have been set and address is not part of them");
+      await expect(escrow.connect(wallet1).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract, locking configuration has been set and amount to lock is different than the amount configured");
+      await expect(escrow.connect(wallet2).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract, locking configuration has been set and amount to lock is different than the amount configured");
+      
+      expect(await escrow.connect(wallet1).getAddressLockConfig(1, wallet2.address)).to.equal(57);
+      expect(await escrow.connect(wallet2).getAddressLockConfig(1, wallet2.address)).to.equal(57);
+      expect(await escrow.connect(wallet4).getAddressLockConfig(1, wallet1.address)).to.equal(43);
+      await expect(escrow.connect(wallet4).getAddressLockConfig(1, wallet4.address)).to.be.revertedWith("lock config setting must be set for address");
+
+      // lock correct amounts
+      await escrow.connect(wallet1).adhereToContract(1, 43);
+      await escrow.connect(wallet2).adhereToContract(1, 57);
+
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(943);
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(957);
+
+      await expect(escrow.connect(wallet1).withdrawFromContract(1)).to.be.revertedWith("contract is not redeemable yet");
+      await expect(escrow.connect(wallet2).withdrawFromContract(1)).to.be.revertedWith("contract is not redeemable yet");
+
+      await escrow.connect(wallet1).approveRelease(1);
+      await escrow.connect(wallet2).approveRelease(1);
+      await escrow.connect(wallet1).withdrawFromContract(1);
+      await escrow.connect(wallet2).withdrawFromContract(1);
+
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(1000);
+    })
+  });
 })
