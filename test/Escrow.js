@@ -218,7 +218,7 @@ describe('Escrow', function () {
       
       
       // try to adhere to contract and it has not been fully configured
-      await expect(escrow.connect(wallet3).adhereToContract(1, 100)).to.be.revertedWith("cant adhere to contract if proportion of withdrawal hasnt been fully configured");
+      await expect(escrow.connect(wallet3).adhereToContract(1, 100)).to.be.revertedWith("cant adhere to contract if proportion of withdrawal hasnt been fully configured. Percentage must add to 100%");
 
       await escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet3.address, 500000);
       expect(await escrow.connect(wallet1).getWithdrawalProportionTotalForContract(1)).to.equal(1000000);
@@ -235,7 +235,7 @@ describe('Escrow', function () {
       await escrow.connect(wallet1).createContract(2, [], 1);
       await escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet2.address, 300000);
       await escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet3.address, 300000);
-      await expect(escrow.connect(wallet2).adhereToContract(1, 100)).to.be.revertedWith("cant adhere to contract if proportion of withdrawal hasnt been fully configured");
+      await expect(escrow.connect(wallet2).adhereToContract(1, 100)).to.be.revertedWith("cant adhere to contract if proportion of withdrawal hasnt been fully configured. Percentage must add to 100%");
     });
 
     it('should check that payments are correct using withdrawal proportion feature', async function () {
@@ -269,8 +269,9 @@ describe('Escrow', function () {
       expect(await anyToken.balanceOf(wallet3.address)).to.equal(1000);
       await escrow.connect(wallet1).createContract(2, [], 1);
       await escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet2.address, 300000);
+      await expect(escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet3.address, 800000)).to.be.revertedWith("total proportion of fund withdrawal cant exceed 100%");
       await escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet3.address, 700000);
-      await expect(escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet4.address, 100)).to.be.revertedWith("total proportion of fund withdrawal cant exceed 100%");
+      await expect(escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet4.address, 100)).to.be.revertedWith("cant set further withdrawal configs. Contract has defined a total amount of parties and adding one more config would exceed that amount");
 
       await escrow.connect(wallet2).adhereToContract(1, 100);
       await expect(escrow.connect(wallet4).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract, withdrawal conditions have been set and address is not part of them");
@@ -450,5 +451,32 @@ describe('Escrow', function () {
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
       expect(await anyToken.balanceOf(wallet1.address)).to.equal(1000);
     })
+  });
+
+
+  describe('realistic scenarios', function () {
+    it('2 parties, all configs. creator is a party', async function () {
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(1000);
+      await escrow.connect(wallet1).createContract(2, [wallet1.address, wallet2.address], 1);
+      await escrow.connect(wallet1).setLockConfigForContract(1, wallet1.address, 200);
+      await escrow.connect(wallet1).setLockConfigForContract(1, wallet2.address, 100);
+      await escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet1.address, 333334);
+      await escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet2.address, 666666);
+      await escrow.connect(wallet1).adhereToContract(1, 200);
+      await escrow.connect(wallet2).adhereToContract(1, 100);
+
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(800);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(900);
+
+      await escrow.connect(wallet1).approveRelease(1);
+      await escrow.connect(wallet2).approveRelease(1);
+
+      await escrow.connect(wallet1).withdrawFromContract(1);
+      await escrow.connect(wallet2).withdrawFromContract(1);
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(900);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1099);
+      
+    });
   });
 })

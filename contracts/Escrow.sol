@@ -177,7 +177,7 @@ contract Escrow {
     require(amountToLock > 0, "Amount to lock must be greater than 0");
     
     if (isWithdrawalProportionConfigSet(contractId)) {
-      require(getWithdrawalProportionTotalForContract(contractId) == 1000000, "cant adhere to contract if proportion of withdrawal hasnt been fully configured");
+      require(getWithdrawalProportionTotalForContract(contractId) == 1000000, "cant adhere to contract if proportion of withdrawal hasnt been fully configured. Percentage must add to 100%");
       require(hasAddressWithdrawConfigSet(contractId, msg.sender), "Cant join contract, withdrawal conditions have been set and address is not part of them");
       require(cont.numberOfParties == cont.withdrawalConfig.length, "Cant join contract. Withdrawal configuration not complete. The amount of entries must match the number of parties defined in the contract");
     }
@@ -334,7 +334,7 @@ contract Escrow {
     Contract storage cont = _contracts[contractId];
     require(cont.createdBy == msg.sender, "Contract can only be modified by its creator");
     require(isContractInDraft(contractId), "proportion of withdrawal can only be set in a draft contract. A draft contract is a contract that hasnt been signed by any party yet.");
-    require(cont.numberOfParties > cont.lockConfig.length, "cant set further withdrawal configs. Contract has defined a total amount of parties and adding one more config would exceed that amount");
+    require(cont.numberOfParties > cont.withdrawalConfig.length, "cant set further withdrawal configs. Contract has defined a total amount of parties and adding one more config would exceed that amount");
     require(proportion > 0 && proportion <= 1000000, "proportion must be a number greater than 0 and less or equal than 1 million");
     require(!hasAddressWithdrawConfigSet(contractId, _address), "address has already a configuration setup");
     uint256 currentTotalProportion = getWithdrawalProportionTotalForContract(contractId);
