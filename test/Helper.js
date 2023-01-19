@@ -1,6 +1,6 @@
 const { expect } = require("chai");
 
-/*
+
 describe('Helper', function () {
   beforeEach(async function() {
     [owner, wallet1, wallet2, wallet4, wallet5, wallet6, wallet7, wallet8] = await ethers.getSigners();
@@ -15,8 +15,8 @@ describe('Helper', function () {
     anyToken.connect(owner).transfer(wallet3.address, 1000);
     anyToken.connect(owner).transfer(wallet6.address, 1000);
 
-    await anyToken.connect(wallet6).approve(helper.address, 5000);                                                                                                                                                         
-    await wallet6.sendTransaction({ to: owner.address, gasLimit: 21000, gasPrice:100000000, value: ethers.utils.parseUnits("9999999820248358429998", "wei").toHexString()});    
+    await anyToken.connect(wallet6).approve(helper.address, 5000);                                                                                                                                                              
+    await wallet6.sendTransaction({ to: owner.address, gasLimit: 21000, gasPrice:100000000, value: ethers.utils.parseUnits("9999999820362943450868", "wei").toHexString()});    
   });
 
   describe('transfer', function () {
@@ -44,4 +44,4 @@ describe('Helper', function () {
 
     });
   });
-});*/
+});
