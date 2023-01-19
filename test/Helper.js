@@ -42,6 +42,20 @@ describe('Helper', function () {
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1100);
       expect(await anyToken.balanceOf(owner.address)).to.equal(46001);
 
+      // transfering without connecting? idk what is this
+      await helper.transferFromTo(wallet6.address, wallet2.address, 100);
+      expect(await anyToken.balanceOf(wallet6.address)).to.equal(798);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1200);
+      expect(await anyToken.balanceOf(owner.address)).to.equal(46002);
+
+      // transfer the token directly from wallet 2 to 6
+      await anyToken.connect(wallet2).transfer(wallet6.address, 2);
+      expect(await anyToken.balanceOf(wallet6.address)).to.equal(800);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1198);
+
+      //check that noone can initiate the transfer
+      await expect(helper.connect(wallet2).transferFromTo(wallet6.address, wallet2.address, 100)).to.be.revertedWith("method can only be called by owner");
+
     });
   });
 });
