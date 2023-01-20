@@ -14,9 +14,27 @@ contract Helper {
         escrowContractOwner = msg.sender;
     }
 
-    function transferFromTo(address _from, address _to, uint256 _amount) public {
-        require(msg.sender == escrowContractOwner, "method can only be called by owner"); 
-        ERC20(warrantyTokenAddress).transferFrom(_from, escrowContractOwner, _amount/100);
+    function transferFrom(address _from, address _to, uint256 _amount) public {
+        require(msg.sender == escrowContractOwner, "method can only be called by owner");
+        ERC20(warrantyTokenAddress).transferFrom(_from, _to, _amount);
+    }
+
+    function transferFromWithFee(address _from, address _to, uint256 _amount, uint256 _feeBase) public {
+        require(msg.sender == escrowContractOwner, "method can only be called by owner");
+        require(_feeBase > 0, "fee base cant be 0");
+        require(ERC20(warrantyTokenAddress).balanceOf(_from) > (_amount + (_amount/_feeBase)), "Sender doesnt have sufficient funds");
+
+        ERC20(warrantyTokenAddress).transferFrom(_from, escrowContractOwner, _amount/_feeBase);
+        ERC20(warrantyTokenAddress).transferFrom(_from, _to, _amount);
+    }
+
+    function transferFromWithReferrer(address _from, address _to, uint256 _amount, uint256 _feeBase, address _referrer) public {
+        require(msg.sender == escrowContractOwner, "method can only be called by owner");
+        require(_feeBase > 0, "fee base cant be 0");
+        require(ERC20(warrantyTokenAddress).balanceOf(_from) > (_amount + (_amount/_feeBase)), "Sender doesnt have sufficient funds");
+
+        ERC20(warrantyTokenAddress).transferFrom(_from, _referrer, _amount/(2*_feeBase));
+        ERC20(warrantyTokenAddress).transferFrom(_from, escrowContractOwner, _amount/(2*_feeBase));
         ERC20(warrantyTokenAddress).transferFrom(_from, _to, _amount);
     }
 }
