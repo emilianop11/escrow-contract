@@ -27,9 +27,12 @@ contract Escrow {
       uint256 _contractId;
       address createdBy;
       uint256 totalContractValue;
+      uint createdAt;
       uint unlockTime;
       address[] whiteListedParties;
       uint256 numberOfParties;
+      string name;
+      string description;
       ContractParty[] involvedParties;
       // definition of which proportion of the locked funds can be withdrawn by each party when the contract is redeemable
       WithdrawalConfig[] withdrawalConfig;
@@ -287,7 +290,7 @@ contract Escrow {
     return total;
   }
 
-  function createContract(uint256 numberOfParties, address[] memory _whiteListedParties, uint256 daysToUnlock) external {
+  function createContract(string calldata _name, string calldata _description, uint256 numberOfParties, address[] memory _whiteListedParties, uint256 daysToUnlock) external {
     require(numberOfParties >= 2, 'Number of involved parties must be equal or greater than 2');
      _contractIdCounter.increment();
     uint256 contractId = _contractIdCounter.current();
@@ -296,6 +299,9 @@ contract Escrow {
 
     Contract storage newContract = _contracts[contractId];
     newContract._contractId = contractId;
+    newContract.name = _name;
+    newContract.createdAt = creationDate;
+    newContract.description = _description;
     newContract.createdBy = msg.sender;
     newContract.whiteListedParties = _whiteListedParties;
     newContract.unlockTime = unlockTime;
