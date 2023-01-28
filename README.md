@@ -9,5 +9,5 @@ npx hardhat run scripts/deploy.js
 npx hardhat run scripts/deploy.js --network matic
 
 // deploy locally
-npx hardhat run --network localhost scripts/deploy.js
+npx hardhat run --network localhost scripts/deployLocallyToTestFiume.js
 ```
