@@ -36,14 +36,22 @@ const main = async () => {
     5000
   );
 
-  await escrow.connect(wallet2).createContract("Sample Contract", "A sample contract just to test the ui", 2, [], 1, { gasLimit: 2100000, gasPrice:1294948769,});
+  await escrow.connect(wallet2).createContract(
+    "Sample Contract",
+    "A sample contract just to test the ui", 
+    2, 
+    [
+      "0x1c5ed27f7826eeda7d2bd661c73645519c3e3d99",
+      wallet2.address
+    ], 
+    1, 
+    { gasLimit: 2100000, 
+      gasPrice:1294948769,});
   await escrow.connect(wallet2).setLockConfigForContract(1, wallet2.address, 200);
-  await escrow.connect(wallet2).setLockConfigForContract(1, wallet3.address, 100);
+  await escrow.connect(wallet2).setLockConfigForContract(1, "0x1c5ed27f7826eeda7d2bd661c73645519c3e3d99", 100);
   await escrow.connect(wallet2).setWithdrawalConfigForContract(1, wallet2.address, 333334);
-  await escrow.connect(wallet2).setWithdrawalConfigForContract(1, wallet3.address, 666666);
-
+  await escrow.connect(wallet2).setWithdrawalConfigForContract(1, "0x1c5ed27f7826eeda7d2bd661c73645519c3e3d99", 666666);
   await escrow.connect(wallet2).adhereToContract(1, 200, { gasLimit: 2100000, gasPrice:1294948769,});
-  await escrow.connect(wallet3).adhereToContract(1, 100, { gasLimit: 2100000, gasPrice:1294948769,});
 
 };
 
