@@ -453,6 +453,13 @@ describe('Escrow', function () {
     })
   });
 
+  describe('realistic scenarios', function () {
+    it('test get functions', async function () {
+      // im not being able to test this... :(
+      // cant check types being returned...its a nightmare, will come back later
+    })
+  })
+
 
   describe('realistic scenarios', function () {
     it('2 parties, all configs. creator is a party', async function () {

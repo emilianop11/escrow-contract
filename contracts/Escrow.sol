@@ -352,6 +352,17 @@ contract Escrow {
     return _addressesToContract[msg.sender];  
   }
 
+  function getContractsForAddress() external view returns (Contract[] memory) {
+    uint256[] storage contractIds = _addressesToContract[msg.sender];
+    Contract[] memory contracts = new Contract[](contractIds.length);
+    for (uint i = 0; i < contractIds.length; i++) {
+        uint256 contractId = contractIds[i];
+        Contract storage cont = _contracts[contractId];
+        contracts[i] = cont;
+    }
+    return contracts;
+  }
+
   function getTotalContractValue(uint256 contractId) external view returns (uint256) {
     Contract storage cont = _contracts[contractId];
     return cont.totalContractValue;
