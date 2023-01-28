@@ -19,6 +19,7 @@
   "dependencies": {
     "@nomicfoundation/hardhat-toolbox": "^2.0.1",
     "@openzeppelin/contracts": "^4.5.0",
-    "dotenv": "^16.0.3"
+    "dotenv": "^16.0.3",
+    "solidity-struct-parser": "^1.0.0"
   }
 }

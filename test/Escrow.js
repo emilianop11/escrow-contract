@@ -1,4 +1,5 @@
 const { expect } = require("chai");
+const {ParseSolidityStruct} = require("solidity-struct-parser");
 
 describe('Escrow', function () {
   beforeEach(async function() {
@@ -455,8 +456,72 @@ describe('Escrow', function () {
 
   describe('realistic scenarios', function () {
     it('test get functions', async function () {
-      // im not being able to test this... :(
-      // cant check types being returned...its a nightmare, will come back later
+
+      await escrow.connect(wallet1).createContract(2, [], 1);
+      await escrow.connect(wallet2).adhereToContract(1, 100);
+      await escrow.connect(wallet3).adhereToContract(1, 100);
+
+      const contsForAddress1 = await escrow.connect(wallet1).getContractsForAddress()
+      const parsedContsForAddress1 = ParseSolidityStruct(contsForAddress1)
+      const contsForAddress2 = await escrow.connect(wallet2).getContractsForAddress()
+      const parsedContsForAddress2 = ParseSolidityStruct(contsForAddress2)
+      const contsForAddress3 = await escrow.connect(wallet3).getContractsForAddress()
+      const parsedContsForAddress3 = ParseSolidityStruct(contsForAddress3)
+
+      expect(parsedContsForAddress1).to.eql([]);
+      expect(parsedContsForAddress2).to.eql([
+        {
+          _contractId: 1,
+          createdBy: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+          totalContractValue: 200,
+          unlockTime: parsedContsForAddress2[0].unlockTime,
+          whiteListedParties: [],
+          numberOfParties: 2,
+          involvedParties: [ {
+              _lockedAmount: 100,
+              _withdrawnAmount: 0,
+              approvedRelease: false,
+              partyAddress: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            },
+            {
+              _lockedAmount: 100,
+              _withdrawnAmount: 0,
+              approvedRelease: false,
+              partyAddress: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+            }
+          ],
+          withdrawalConfig: [],
+          lockConfig: []
+        }
+      ]);
+      
+
+      expect(parsedContsForAddress3).to.eql([
+        {
+          _contractId: 1,
+          createdBy: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+          totalContractValue: 200,
+          unlockTime: parsedContsForAddress2[0].unlockTime,
+          whiteListedParties: [],
+          numberOfParties: 2,
+          involvedParties: [ {
+              _lockedAmount: 100,
+              _withdrawnAmount: 0,
+              approvedRelease: false,
+              partyAddress: "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            },
+            {
+              _lockedAmount: 100,
+              _withdrawnAmount: 0,
+              approvedRelease: false,
+              partyAddress: "0x90F79bf6EB2c4f870365E785982E1f101E93b906",
+            }
+          ],
+          withdrawalConfig: [],
+          lockConfig: []
+        }
+      ]);
+      
     })
   })
 
