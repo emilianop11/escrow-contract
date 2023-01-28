@@ -33,7 +33,7 @@ contract Escrow {
       uint256 numberOfParties;
       string name;
       string description;
-      ContractParty[] involvedParties;
+      ContractParty[] signerParties;
       // definition of which proportion of the locked funds can be withdrawn by each party when the contract is redeemable
       WithdrawalConfig[] withdrawalConfig;
       // definition of how much each address must lock in the contract
@@ -59,8 +59,8 @@ contract Escrow {
 
     if (block.timestamp > cont.unlockTime) return true;
 
-    for (uint i = 0; i < cont.involvedParties.length; i++) {
-        if (!cont.involvedParties[i].approvedRelease) return false;
+    for (uint i = 0; i < cont.signerParties.length; i++) {
+        if (!cont.signerParties[i].approvedRelease) return false;
     }
 
     return true;
@@ -68,13 +68,13 @@ contract Escrow {
 
   function isContractInDraft(uint256 contractId) public view returns(bool) {
     Contract memory cont = getContract(contractId);
-    return cont.involvedParties.length == 0;
+    return cont.signerParties.length == 0;
   }
 
   function isContractCompletelySigned(uint256 contractId) public view returns(bool) {
     Contract storage cont = _contracts[contractId];
     if (cont.numberOfParties == 0) return false;
-    return cont.numberOfParties == cont.involvedParties.length;
+    return cont.numberOfParties == cont.signerParties.length;
   }
 
   function isAddressWhitelistedInContract(uint256 contractId) public view returns(bool) {
@@ -87,11 +87,11 @@ contract Escrow {
     return false;
   }
 
-  function isCallerInvolvedInContract(uint256 contractId) public view returns(bool) {
+  function didCallerSignContract(uint256 contractId) public view returns(bool) {
     Contract storage cont = _contracts[contractId];
 
-    for (uint i = 0; i < cont.involvedParties.length; i++) {
-        if (cont.involvedParties[i].partyAddress == msg.sender) return true;
+    for (uint i = 0; i < cont.signerParties.length; i++) {
+        if (cont.signerParties[i].partyAddress == msg.sender) return true;
     }
     return false;
   }
@@ -101,14 +101,14 @@ contract Escrow {
   }
 
   function approveRelease(uint256 contractId) public{
-    require(isCallerInvolvedInContract(contractId), 'Address is not part of contract, cant procede');
+    require(didCallerSignContract(contractId), 'Address is not part of contract, cant procede');
     require(isContractCompletelySigned(contractId), 'Contract must be fully signed by all parties in order to approve release');
     
     Contract storage cont = _contracts[contractId];
 
-    for (uint i = 0; i < cont.involvedParties.length; i++) {
-        if (cont.involvedParties[i].partyAddress == msg.sender) {
-            cont.involvedParties[i].approvedRelease = true;
+    for (uint i = 0; i < cont.signerParties.length; i++) {
+        if (cont.signerParties[i].partyAddress == msg.sender) {
+            cont.signerParties[i].approvedRelease = true;
         }
     }
   }
@@ -176,7 +176,7 @@ contract Escrow {
     
     require(isAddressWhitelistedInContract(contractId), "Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
     require(!isContractCompletelySigned(contractId), "Cant join contract, it has already been signed by all involved parties");
-    require(isCallerInvolvedInContract(contractId) == false, "Cant join contract, address has already signed this contract");
+    require(didCallerSignContract(contractId) == false, "Cant join contract, address has already signed this contract");
     require(amountToLock > 0, "Amount to lock must be greater than 0");
     
     if (isWithdrawalProportionConfigSet(contractId)) {
@@ -200,46 +200,59 @@ contract Escrow {
         approvedRelease: false
     });
 
-    cont.involvedParties.push(newContractParty);
+    cont.signerParties.push(newContractParty);
     cont.totalContractValue += amountToLock;
-    _addressesToContract[msg.sender].push(cont._contractId);
+
+    // avoid pushing duplicates
+    uint256[] memory contractsForAddress = _addressesToContract[msg.sender];
+    bool alreadyIncluded = false;
+    for (uint i = 0; i < contractsForAddress.length; i++) {
+        if (contractsForAddress[i] == cont._contractId ) {
+            alreadyIncluded = true;
+            break;
+        }
+    }
+
+    if (!alreadyIncluded) {
+      _addressesToContract[msg.sender].push(cont._contractId);
+    }
   }
 
   function withdrawFromContract(uint256 contractId) external {
-    require(isCallerInvolvedInContract(contractId), 'Address is not part of contract, cant procede');
+    require(didCallerSignContract(contractId), 'Address is not part of contract, cant procede');
     require(isContractRedeemable(contractId), "contract is not redeemable yet");
 
     bool isContractFullySigned = isContractCompletelySigned(contractId);
     Contract storage cont = _contracts[contractId];
 
     if (!isWithdrawalProportionConfigSet(contractId)) {
-      for (uint i = 0; i < cont.involvedParties.length; i++) {
-        if (cont.involvedParties[i].partyAddress == msg.sender) {
-            require(cont.involvedParties[i]._lockedAmount > 0, "all funds for this address have been withdrawn");
-            cont.involvedParties[i]._withdrawnAmount = cont.involvedParties[i]._lockedAmount;
-            cont.involvedParties[i]._lockedAmount = 0;
-            ERC20(warrantyTokenAddress).transfer(msg.sender, cont.involvedParties[i]._withdrawnAmount);
+      for (uint i = 0; i < cont.signerParties.length; i++) {
+        if (cont.signerParties[i].partyAddress == msg.sender) {
+            require(cont.signerParties[i]._lockedAmount > 0, "all funds for this address have been withdrawn");
+            cont.signerParties[i]._withdrawnAmount = cont.signerParties[i]._lockedAmount;
+            cont.signerParties[i]._lockedAmount = 0;
+            ERC20(warrantyTokenAddress).transfer(msg.sender, cont.signerParties[i]._withdrawnAmount);
             
             if (!isContractFullySigned) {
-              cont.totalContractValue -= cont.involvedParties[i]._withdrawnAmount;
-              delete cont.involvedParties[i];
+              cont.totalContractValue -= cont.signerParties[i]._withdrawnAmount;
+              delete cont.signerParties[i];
             }
 
             return;
         }
       }
     } else {
-      for (uint i = 0; i < cont.involvedParties.length; i++) {
-        if (cont.involvedParties[i].partyAddress == msg.sender) {
-            require(cont.involvedParties[i]._lockedAmount > 0, "all funds for this address have been withdrawn");
+      for (uint i = 0; i < cont.signerParties.length; i++) {
+        if (cont.signerParties[i].partyAddress == msg.sender) {
+            require(cont.signerParties[i]._lockedAmount > 0, "all funds for this address have been withdrawn");
             uint256 withdrawalProportion = getAddressWithdrawProportion(contractId, msg.sender);
-            cont.involvedParties[i]._withdrawnAmount = cont.totalContractValue * withdrawalProportion / 1000000;
-            cont.involvedParties[i]._lockedAmount = 0;
-            ERC20(warrantyTokenAddress).transfer(msg.sender, cont.involvedParties[i]._withdrawnAmount);
+            cont.signerParties[i]._withdrawnAmount = cont.totalContractValue * withdrawalProportion / 1000000;
+            cont.signerParties[i]._lockedAmount = 0;
+            ERC20(warrantyTokenAddress).transfer(msg.sender, cont.signerParties[i]._withdrawnAmount);
             
             if (!isContractFullySigned) {
-              cont.totalContractValue -= cont.involvedParties[i]._withdrawnAmount;
-              delete cont.involvedParties[i];
+              cont.totalContractValue -= cont.signerParties[i]._withdrawnAmount;
+              delete cont.signerParties[i];
             }
 
             return;
@@ -249,24 +262,24 @@ contract Escrow {
   }
 
   function getWithdrawnAmountForAddress(uint256 contractId) external view returns(uint256) {
-    require(isCallerInvolvedInContract(contractId), 'Address is not part of contract, cant procede');
+    require(didCallerSignContract(contractId), 'Address is not part of contract, cant procede');
 
     Contract storage cont = _contracts[contractId];
-    for (uint i = 0; i < cont.involvedParties.length; i++) {
-        if (cont.involvedParties[i].partyAddress == msg.sender) {
-            return cont.involvedParties[i]._withdrawnAmount;
+    for (uint i = 0; i < cont.signerParties.length; i++) {
+        if (cont.signerParties[i].partyAddress == msg.sender) {
+            return cont.signerParties[i]._withdrawnAmount;
         }
     }
     return 0;
   }
 
   function getLockedAmountForAddress(uint256 contractId) external view returns(uint256) {
-    require(isCallerInvolvedInContract(contractId), 'Address is not part of contract, cant procede');
+    require(didCallerSignContract(contractId), 'Address is not part of contract, cant procede');
 
     Contract storage cont = _contracts[contractId];
-    for (uint i = 0; i < cont.involvedParties.length; i++) {
-        if (cont.involvedParties[i].partyAddress == msg.sender) {
-            return cont.involvedParties[i]._lockedAmount;
+    for (uint i = 0; i < cont.signerParties.length; i++) {
+        if (cont.signerParties[i].partyAddress == msg.sender) {
+            return cont.signerParties[i]._lockedAmount;
         }
     }
     return 0;
@@ -275,8 +288,8 @@ contract Escrow {
   function getWithdrawnAmountForContract(uint256 contractId) external view returns(uint256) {
     uint256 total = 0;
     Contract storage cont = _contracts[contractId];
-    for (uint i = 0; i < cont.involvedParties.length; i++) {
-        total += cont.involvedParties[i]._withdrawnAmount;
+    for (uint i = 0; i < cont.signerParties.length; i++) {
+        total += cont.signerParties[i]._withdrawnAmount;
     }
     return total;
   }
@@ -284,8 +297,8 @@ contract Escrow {
   function getLockedAmountForContract(uint256 contractId) external view returns(uint256) {
     uint256 total = 0;
     Contract storage cont = _contracts[contractId];
-    for (uint i = 0; i < cont.involvedParties.length; i++) {
-        total += cont.involvedParties[i]._lockedAmount;
+    for (uint i = 0; i < cont.signerParties.length; i++) {
+        total += cont.signerParties[i]._lockedAmount;
     }
     return total;
   }
@@ -307,6 +320,10 @@ contract Escrow {
     newContract.unlockTime = unlockTime;
     newContract.numberOfParties = numberOfParties;
     _contracts[contractId] = newContract;
+
+    for (uint i = 0; i < _whiteListedParties.length; i++) {
+      _addressesToContract[_whiteListedParties[i]].push(contractId);
+    }
   }
 
   function getWithdrawalProportionTotalForContract(uint256 contractId) public view returns(uint256) {

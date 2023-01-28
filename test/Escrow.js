@@ -46,7 +46,7 @@ describe('Escrow', function () {
       const retrievedContractIdsForAddress = await escrow.connect(wallet1).getContractIdsForAddress();
       expect(retrievedContractIdsForAddress[0]).to.equal(undefined);
 
-      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(false);
       expect(await escrow.connect(wallet1).isContractCompletelySigned(133)).to.equal(false);
 
       // a non fully signed contract is redeemable
@@ -65,10 +65,10 @@ describe('Escrow', function () {
       const firstContract = await escrow.connect(wallet1).getContract(1);
       expect(firstContract.createdBy).to.equal(wallet1.address);
       expect(await escrow.connect(wallet1).isContractCompletelySigned(1)).to.equal(false);
-      expect(await escrow.connect(wallet1).isCallerInvolvedInContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet1).didCallerSignContract(1)).to.equal(false);
       expect(await escrow.connect(wallet1).isContractRedeemable(1)).to.equal(true);
-      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
-      expect(await escrow.connect(wallet3).isCallerInvolvedInContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet3).didCallerSignContract(1)).to.equal(false);
       expect(await escrow.connect(walletHacker).getLockedAmountForContract(1)).to.equal(0);
       expect(await escrow.connect(walletHacker).getWithdrawnAmountForContract(1)).to.equal(0);
       expect(await escrow.connect(wallet2).getTotalContractValue(122)).to.equal(0);
@@ -86,23 +86,23 @@ describe('Escrow', function () {
       expect(await anyToken.balanceOf(escrow.address)).to.equal(0);
      
       await expect(escrow.connect(wallet2).adhereToContract(11, 100)).to.be.revertedWith("Cant join contract. Contract has not been initialized");
-      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(false);
       await escrow.connect(wallet1).createContract("","",2, [], 1);
-      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(false);
       
       //adhere wallet2 to contract
       await expect(escrow.connect(wallet2).adhereToContract(1, 750000)).to.be.revertedWith("ERC20: insufficient allowance");
       await expect(escrow.connect(wallet2).adhereToContract(1, 4000)).to.be.revertedWith("ERC20: transfer amount exceeds balance");
       await escrow.connect(wallet2).adhereToContract(1, 100);
-      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(true);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(true);
       expect(await escrow.connect(wallet2).isContractCompletelySigned(1)).to.equal(false);
-      expect(await escrow.connect(wallet3).isCallerInvolvedInContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet3).didCallerSignContract(1)).to.equal(false);
       await expect(escrow.connect(wallet2).approveRelease(1)).to.be.revertedWith("Contract must be fully signed by all parties in order to approve release");
       expect(await escrow.connect(wallet2).isContractRedeemable(1)).to.equal(true);
 
       //adhere wallet3 to contract
       await escrow.connect(wallet3).adhereToContract(1, 100);
-      expect(await escrow.connect(wallet3).isCallerInvolvedInContract(1)).to.equal(true);
+      expect(await escrow.connect(wallet3).didCallerSignContract(1)).to.equal(true);
       expect(await escrow.connect(wallet3).isContractCompletelySigned(1)).to.equal(true);
       expect(await escrow.connect(wallet3).isContractRedeemable(1)).to.equal(false);
 
@@ -140,10 +140,10 @@ describe('Escrow', function () {
       const contract = await escrow.connect(wallet1).getContract(1);
       expect(await escrow.connect(walletHacker).getLockedAmountForContract(1)).to.equal(200);
       expect(await escrow.connect(walletHacker).getWithdrawnAmountForContract(1)).to.equal(0);
-      expect(contract.involvedParties[0]._lockedAmount).to.equal(100);
-      expect(contract.involvedParties[1]._lockedAmount).to.equal(100);
-      expect(contract.involvedParties[0]._withdrawnAmount).to.equal(0);
-      expect(contract.involvedParties[1]._withdrawnAmount).to.equal(0);
+      expect(contract.signerParties[0]._lockedAmount).to.equal(100);
+      expect(contract.signerParties[1]._lockedAmount).to.equal(100);
+      expect(contract.signerParties[0]._withdrawnAmount).to.equal(0);
+      expect(contract.signerParties[1]._withdrawnAmount).to.equal(0);
 
       expect(await escrow.connect(wallet2).getWithdrawnAmountForAddress(1)).to.equal(0);
       expect(await escrow.connect(wallet2).getLockedAmountForAddress(1)).to.equal(100);
@@ -173,8 +173,8 @@ describe('Escrow', function () {
       expect(await escrow.connect(walletHacker).getLockedAmountForContract(1)).to.equal(0);
       expect(await escrow.connect(walletHacker).getWithdrawnAmountForContract(1)).to.equal(200);      
     
-      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(true);
-      expect(await escrow.connect(wallet3).isCallerInvolvedInContract(1)).to.equal(true);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(true);
+      expect(await escrow.connect(wallet3).didCallerSignContract(1)).to.equal(true);
     });
 
 
@@ -182,23 +182,23 @@ describe('Escrow', function () {
       await escrow.connect(wallet1).createContract("","",2, [wallet1.address, wallet2.address], 1);
       await expect(escrow.connect(wallet3).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
       await expect(escrow.connect(walletHacker).adhereToContract(1, 100)).to.be.revertedWith("Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
-      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(false);
       await escrow.connect(wallet2).adhereToContract(1, 100);
-      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(true);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(true);
     });
 
     it('should allow wallet 2 to retrieve funds if the contract hasnt been fully signed', async function () {
       await escrow.connect(wallet1).createContract("","",2, [], 1);
 
-      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(false);
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
       await escrow.connect(wallet2).adhereToContract(1, 100);
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(900);
-      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(true);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(true);
       expect(await escrow.connect(wallet3).getTotalContractValue(1)).to.equal(100);
       await escrow.connect(wallet2).withdrawFromContract(1);
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
-      expect(await escrow.connect(wallet2).isCallerInvolvedInContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(false);
       expect(await escrow.connect(wallet3).getTotalContractValue(1)).to.equal(0);
     });
   });
@@ -455,6 +455,60 @@ describe('Escrow', function () {
   });
 
   describe('realistic scenarios', function () {
+    it('test get functions before adhere', async function () {
+
+      await escrow.connect(wallet1).createContract("the name","the description",2, [wallet2.address, wallet3.address], 1);
+
+      const contsForAddress1 = await escrow.connect(wallet1).getContractsForAddress()
+      const parsedContsForAddress1 = ParseSolidityStruct(contsForAddress1)
+      const contsForAddress2 = await escrow.connect(wallet2).getContractsForAddress()
+      const parsedContsForAddress2 = ParseSolidityStruct(contsForAddress2)
+      const contsForAddress3 = await escrow.connect(wallet3).getContractsForAddress()
+      const parsedContsForAddress3 = ParseSolidityStruct(contsForAddress3)
+      expect(parsedContsForAddress1).to.eql([]);
+      expect(parsedContsForAddress2).to.eql([
+        {
+          _contractId: 1,
+          name: "the name",
+          description: "the description",
+          createdAt: parsedContsForAddress2[0].createdAt,
+          createdBy: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+          totalContractValue: 0,
+          unlockTime: parsedContsForAddress2[0].unlockTime,
+          whiteListedParties: [
+            "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+          ],
+          numberOfParties: 2,
+          signerParties: [],
+          withdrawalConfig: [],
+          lockConfig: []
+        }
+      ]);
+      
+
+      expect(parsedContsForAddress3).to.eql([
+        {
+          _contractId: 1,
+          name: "the name",
+          description: "the description",
+          createdAt: parsedContsForAddress3[0].createdAt,
+          createdBy: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+          totalContractValue: 0,
+          unlockTime: parsedContsForAddress3[0].unlockTime,
+          whiteListedParties: [
+            "0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC",
+            "0x90F79bf6EB2c4f870365E785982E1f101E93b906"
+          ],
+          numberOfParties: 2,
+          signerParties: [],
+          withdrawalConfig: [],
+          lockConfig: []
+        }
+      ]);
+      
+    })
+
     it('test get functions', async function () {
 
       await escrow.connect(wallet1).createContract("the name","the description",2, [], 1);
@@ -480,7 +534,7 @@ describe('Escrow', function () {
           unlockTime: parsedContsForAddress2[0].unlockTime,
           whiteListedParties: [],
           numberOfParties: 2,
-          involvedParties: [ {
+          signerParties: [ {
               _lockedAmount: 100,
               _withdrawnAmount: 0,
               approvedRelease: false,
@@ -510,7 +564,7 @@ describe('Escrow', function () {
           unlockTime: parsedContsForAddress3[0].unlockTime,
           whiteListedParties: [],
           numberOfParties: 2,
-          involvedParties: [ {
+          signerParties: [ {
               _lockedAmount: 100,
               _withdrawnAmount: 0,
               approvedRelease: false,
@@ -529,6 +583,8 @@ describe('Escrow', function () {
       ]);
       
     })
+
+    
   })
 
 
