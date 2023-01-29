@@ -297,6 +297,39 @@ contract Escrow {
     return total;
   }
 
+  function setLockConfigForContract(uint256 contractId, address _address, uint256 _amountToLock) public {
+    Contract storage cont = _contracts[contractId];
+    require(cont.createdBy == msg.sender, "Contract can only be modified by its creator");
+    require(isContractInDraft(contractId), "lock config can only be set in a draft contract. A draft contract is a contract that hasnt been signed by any party yet.");
+    require(cont.numberOfParties > cont.lockConfig.length, "cant set further lock configs. Contract has defined a total amount of parties and adding one more config would exceed that amount");
+    require(!hasAddressLockConfigSet(contractId, _address), "address has already a configuration setup");
+
+    LockConfig memory conf = LockConfig({
+      partyAddress: _address,
+      amountToLock: _amountToLock
+    });
+
+    cont.lockConfig.push(conf);
+  }
+
+  function setWithdrawalConfigForContract(uint256 contractId, address _address, uint256 proportion) public {
+    Contract storage cont = _contracts[contractId];
+    require(cont.createdBy == msg.sender, "Contract can only be modified by its creator");
+    require(isContractInDraft(contractId), "proportion of withdrawal can only be set in a draft contract. A draft contract is a contract that hasnt been signed by any party yet.");
+    require(cont.numberOfParties > cont.withdrawalConfig.length, "cant set further withdrawal configs. Contract has defined a total amount of parties and adding one more config would exceed that amount");
+    require(proportion > 0 && proportion <= 1000000, "proportion must be a number greater than 0 and less or equal than 1 million");
+    require(!hasAddressWithdrawConfigSet(contractId, _address), "address has already a configuration setup");
+    uint256 currentTotalProportion = getWithdrawalProportionTotalForContract(contractId);
+    require((currentTotalProportion + proportion) <= 1000000, "total proportion of fund withdrawal cant exceed 100%");
+
+    WithdrawalConfig memory conf = WithdrawalConfig({
+        partyAddress: _address,
+        withdrawalProportion: proportion
+    });
+
+    cont.withdrawalConfig.push(conf);
+  }
+
   function createContract(
       string calldata _name,
       string calldata _description,
@@ -322,20 +355,17 @@ contract Escrow {
     newContract.unlockTime = unlockTime;
     newContract.numberOfParties = numberOfParties;
 
+    if (_lockConfig.length > 0 || _withdrawalConfig.length > 0) {
+      require(_lockConfig.length == numberOfParties, "conf must be completely defined");
+      require(_withdrawalConfig.length == numberOfParties, "conf must be completely defined");
+    }
+
     for (uint i = 0; i < _lockConfig.length; i++) {
-      LockConfig memory conf = LockConfig({
-        partyAddress: _lockConfig[i].partyAddress,
-        amountToLock: _lockConfig[i].amountToLock
-      });
-      newContract.lockConfig.push(conf);
+      setLockConfigForContract(contractId, _lockConfig[i].partyAddress, _lockConfig[i].amountToLock);
     }
 
     for (uint i = 0; i < _withdrawalConfig.length; i++) {
-      WithdrawalConfig memory conf = WithdrawalConfig({
-        partyAddress: _withdrawalConfig[i].partyAddress,
-        withdrawalProportion: _withdrawalConfig[i].withdrawalProportion
-      });
-      newContract.withdrawalConfig.push(conf);
+      setWithdrawalConfigForContract(contractId, _withdrawalConfig[i].partyAddress, _withdrawalConfig[i].withdrawalProportion);
     }
 
     _contracts[contractId] = newContract;
@@ -347,46 +377,10 @@ contract Escrow {
   function getWithdrawalProportionTotalForContract(uint256 contractId) public view returns(uint256) {
     uint256 total = 0;
     Contract storage cont = _contracts[contractId];
-
-    // otherwise, check and accum
     for (uint i = 0; i < cont.withdrawalConfig.length; i++) {
         total += cont.withdrawalConfig[i].withdrawalProportion;
     }
     return total;
-  }
-
-
-  function setLockConfigForContract(uint256 contractId, address _address, uint256 _amountToLock) external {
-    Contract storage cont = _contracts[contractId];
-    require(cont.createdBy == msg.sender, "Contract can only be modified by its creator");
-    require(isContractInDraft(contractId), "lock config can only be set in a draft contract. A draft contract is a contract that hasnt been signed by any party yet.");
-    require(cont.numberOfParties > cont.lockConfig.length, "cant set further lock configs. Contract has defined a total amount of parties and adding one more config would exceed that amount");
-    require(!hasAddressLockConfigSet(contractId, _address), "address has already a configuration setup");
-
-    LockConfig memory conf = LockConfig({
-      partyAddress: _address,
-      amountToLock: _amountToLock
-    });
-
-    cont.lockConfig.push(conf);
-  }
-
-  function setWithdrawalConfigForContract(uint256 contractId, address _address, uint256 proportion) external {
-    Contract storage cont = _contracts[contractId];
-    require(cont.createdBy == msg.sender, "Contract can only be modified by its creator");
-    require(isContractInDraft(contractId), "proportion of withdrawal can only be set in a draft contract. A draft contract is a contract that hasnt been signed by any party yet.");
-    require(cont.numberOfParties > cont.withdrawalConfig.length, "cant set further withdrawal configs. Contract has defined a total amount of parties and adding one more config would exceed that amount");
-    require(proportion > 0 && proportion <= 1000000, "proportion must be a number greater than 0 and less or equal than 1 million");
-    require(!hasAddressWithdrawConfigSet(contractId, _address), "address has already a configuration setup");
-    uint256 currentTotalProportion = getWithdrawalProportionTotalForContract(contractId);
-    require((currentTotalProportion + proportion) <= 1000000, "total proportion of fund withdrawal cant exceed 100%");
-
-    WithdrawalConfig memory conf = WithdrawalConfig({
-        partyAddress: _address,
-        withdrawalProportion: proportion
-    });
-
-    cont.withdrawalConfig.push(conf);
   }
 
   function getContractsForAddress() external view returns (Contract[] memory) {

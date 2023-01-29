@@ -641,5 +641,52 @@ describe('Escrow', function () {
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1099);
       
     });
+
+    it('should check that create properly errors if wrong config is passed', async function () {
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(1000);
+      await expect(escrow.connect(wallet1).createContract(
+        "",
+        "",
+        2,
+        [wallet1.address, wallet2.address],
+        1,
+        [{partyAddress: wallet1.address, amountToLock: 200},{partyAddress: wallet2.address, amountToLock: 100}],
+        [{partyAddress: wallet1.address, withdrawalProportion: 3333334},{partyAddress: wallet2.address, withdrawalProportion: 3666666}],
+      )).to.be.revertedWith("proportion must be a number greater than 0 and less or equal than 1 million");
+        
+      await expect(escrow.connect(wallet1).createContract(
+        "",
+        "",
+        2,
+        [wallet1.address, wallet2.address],
+        1,
+        [{partyAddress: wallet1.address, amountToLock: 200},{partyAddress: wallet2.address, amountToLock: 100}],
+        [{partyAddress: wallet1.address, withdrawalProportion: 300000},{partyAddress: wallet2.address, withdrawalProportion: 900000}],
+      )).to.be.revertedWith("total proportion of fund withdrawal cant exceed 100%");
+        
+      await expect(escrow.connect(wallet1).createContract(
+        "",
+        "",
+        2,
+        [wallet1.address, wallet2.address],
+        1,
+        [{partyAddress: wallet1.address, amountToLock: 200},{partyAddress: wallet2.address, amountToLock: 100}],
+        [{partyAddress: wallet1.address, withdrawalProportion: 300000},{partyAddress: wallet2.address, withdrawalProportion: 900000}],
+      )).to.be.revertedWith("total proportion of fund withdrawal cant exceed 100%");
+        
+
+      await expect(escrow.connect(wallet1).createContract(
+        "",
+        "",
+        2,
+        [wallet1.address, wallet2.address],
+        1,
+        [{partyAddress: wallet2.address, amountToLock: 100}],
+        [{partyAddress: wallet1.address, withdrawalProportion: 300000},{partyAddress: wallet2.address, withdrawalProportion: 600000}],
+      )).to.be.revertedWith("conf must be completely defined");
+    
+    });
   });
-})
+
+});
