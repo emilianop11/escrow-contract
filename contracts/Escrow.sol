@@ -323,12 +323,21 @@ contract Escrow {
     newContract.numberOfParties = numberOfParties;
 
     for (uint i = 0; i < _lockConfig.length; i++) {
-      newContract.lockConfig[i] = _lockConfig[i];
+      LockConfig memory conf = LockConfig({
+        partyAddress: _lockConfig[i].partyAddress,
+        amountToLock: _lockConfig[i].amountToLock
+      });
+      newContract.lockConfig.push(conf);
     }
+
     for (uint i = 0; i < _withdrawalConfig.length; i++) {
-      newContract.withdrawalConfig[i] = _withdrawalConfig[i];
+      WithdrawalConfig memory conf = WithdrawalConfig({
+        partyAddress: _withdrawalConfig[i].partyAddress,
+        withdrawalProportion: _withdrawalConfig[i].withdrawalProportion
+      });
+      newContract.withdrawalConfig.push(conf);
     }
-    
+
     _contracts[contractId] = newContract;
     for (uint i = 0; i < _whiteListedParties.length; i++) {
       _addressesToContract[_whiteListedParties[i]].push(contractId);

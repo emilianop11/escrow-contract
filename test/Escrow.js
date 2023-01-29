@@ -612,5 +612,34 @@ describe('Escrow', function () {
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1099);
       
     });
+
+    it('2 parties, all configs passed as parameters in create method. creator is a party (same as above but passing all config in constructor)', async function () {
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(1000);
+      await escrow.connect(wallet1).createContract(
+        "",
+        "",
+        2,
+        [wallet1.address, wallet2.address],
+        1,
+        [{partyAddress: wallet1.address, amountToLock: 200},{partyAddress: wallet2.address, amountToLock: 100}],
+        [{partyAddress: wallet1.address, withdrawalProportion: 333334},{partyAddress: wallet2.address, withdrawalProportion: 666666}],
+      );
+    
+      await escrow.connect(wallet1).adhereToContract(1, 200);
+      await escrow.connect(wallet2).adhereToContract(1, 100);
+
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(800);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(900);
+
+      await escrow.connect(wallet1).approveRelease(1);
+      await escrow.connect(wallet2).approveRelease(1);
+
+      await escrow.connect(wallet1).withdrawFromContract(1);
+      await escrow.connect(wallet2).withdrawFromContract(1);
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(900);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1099);
+      
+    });
   });
 })
