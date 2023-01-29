@@ -3,7 +3,7 @@ pragma solidity ^0.8.17;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/utils/Counters.sol";
-import "hardhat/console.sol";
+//import "hardhat/console.sol";
 
 contract Escrow {
   struct ContractParty {
@@ -34,9 +34,7 @@ contract Escrow {
       string name;
       string description;
       ContractParty[] signerParties;
-      // definition of which proportion of the locked funds can be withdrawn by each party when the contract is redeemable
       WithdrawalConfig[] withdrawalConfig;
-      // definition of how much each address must lock in the contract
       LockConfig[] lockConfig;
   }
 
@@ -101,8 +99,8 @@ contract Escrow {
   }
 
   function approveRelease(uint256 contractId) public{
-    require(didCallerSignContract(contractId), 'Address is not part of contract, cant procede');
-    require(isContractCompletelySigned(contractId), 'Contract must be fully signed by all parties in order to approve release');
+    require(didCallerSignContract(contractId), 'Address is not part of contract');
+    require(isContractCompletelySigned(contractId), 'Contract must be signed by all parties in order to approve release');
     
     Contract storage cont = _contracts[contractId];
 
@@ -137,7 +135,6 @@ contract Escrow {
 
   function hasAddressLockConfigSet(uint256 contractId, address _address) public view returns(bool) {
     Contract storage cont = _contracts[contractId];
-    
     for (uint i = 0; i < cont.lockConfig.length; i++) {
         if (cont.lockConfig[i].partyAddress == _address) {
             return true;
@@ -147,9 +144,8 @@ contract Escrow {
   }
 
   function getAddressWithdrawProportion(uint256 contractId, address _address) public view returns(uint256) {
-    require(hasAddressWithdrawConfigSet(contractId, _address), "withdrawal proportion setting must be set for address");
+    require(hasAddressWithdrawConfigSet(contractId, _address), "withdrawal proportion must be set for address");
     Contract storage cont = _contracts[contractId];
-    
     for (uint i = 0; i < cont.withdrawalConfig.length; i++) {
         if (cont.withdrawalConfig[i].partyAddress == _address) {
             return cont.withdrawalConfig[i].withdrawalProportion;
@@ -159,9 +155,8 @@ contract Escrow {
   }
 
   function getAddressLockConfig(uint256 contractId, address _address) public view returns(uint256) {
-    require(hasAddressLockConfigSet(contractId, _address), "lock config setting must be set for address");
+    require(hasAddressLockConfigSet(contractId, _address), "lock config must be set for address");
     Contract storage cont = _contracts[contractId];
-    
     for (uint i = 0; i < cont.lockConfig.length; i++) {
         if (cont.lockConfig[i].partyAddress == _address) {
             return cont.lockConfig[i].amountToLock;
@@ -172,23 +167,22 @@ contract Escrow {
 
   function adhereToContract(uint256 contractId, uint256 amountToLock) public {
     Contract storage cont = _contracts[contractId];
-    require(cont.numberOfParties != 0, "Cant join contract. Contract has not been initialized");
-    
-    require(isAddressWhitelistedInContract(contractId), "Cant join contract. Contract has address whitelisting enabled and address is not part of the list");
-    require(!isContractCompletelySigned(contractId), "Cant join contract, it has already been signed by all involved parties");
-    require(didCallerSignContract(contractId) == false, "Cant join contract, address has already signed this contract");
+    require(cont.numberOfParties != 0, "Contract has not been initialized");
+    require(isAddressWhitelistedInContract(contractId), "Contract has address whitelisting enabled and address is not part of the list");
+    require(!isContractCompletelySigned(contractId), "Contract  has already been signed by all involved parties");
+    require(didCallerSignContract(contractId) == false, "Address has already signed this contract");
     require(amountToLock > 0, "Amount to lock must be greater than 0");
     
     if (isWithdrawalProportionConfigSet(contractId)) {
       require(getWithdrawalProportionTotalForContract(contractId) == 1000000, "cant adhere to contract if proportion of withdrawal hasnt been fully configured. Percentage must add to 100%");
-      require(hasAddressWithdrawConfigSet(contractId, msg.sender), "Cant join contract, withdrawal conditions have been set and address is not part of them");
-      require(cont.numberOfParties == cont.withdrawalConfig.length, "Cant join contract. Withdrawal configuration not complete. The amount of entries must match the number of parties defined in the contract");
+      require(hasAddressWithdrawConfigSet(contractId, msg.sender), "withdrawal conditions have been set and address is not part of them");
+      require(cont.numberOfParties == cont.withdrawalConfig.length, "Withdrawal configuration not complete. The amount of entries must match the number of parties defined in the contract");
     }
 
     if (isLockConfigSet(contractId)) {
-      require(hasAddressLockConfigSet(contractId, msg.sender), "Cant join contract, locking conditions have been set and address is not part of them");
-      require(getAddressLockConfig(contractId, msg.sender) == amountToLock, "Cant join contract, locking configuration has been set and amount to lock is different than the amount configured");
-      require(cont.numberOfParties == cont.lockConfig.length, "Cant join contract. Lock configuration not complete. The amount of entries must match the number of parties defined in the contract");
+      require(hasAddressLockConfigSet(contractId, msg.sender), "locking conditions have been set and address is not part of them");
+      require(getAddressLockConfig(contractId, msg.sender) == amountToLock, "locking configuration has been set and amount to lock is different than the amount configured");
+      require(cont.numberOfParties == cont.lockConfig.length, "Lock configuration not complete. The amount of entries must match the number of parties defined in the contract");
     }
 
     ERC20(warrantyTokenAddress).transferFrom(msg.sender, address(this), amountToLock);
@@ -219,7 +213,7 @@ contract Escrow {
   }
 
   function withdrawFromContract(uint256 contractId) external {
-    require(didCallerSignContract(contractId), 'Address is not part of contract, cant procede');
+    require(didCallerSignContract(contractId), 'Address is not part of contract');
     require(isContractRedeemable(contractId), "contract is not redeemable yet");
 
     bool isContractFullySigned = isContractCompletelySigned(contractId);
@@ -262,7 +256,7 @@ contract Escrow {
   }
 
   function getWithdrawnAmountForAddress(uint256 contractId) external view returns(uint256) {
-    require(didCallerSignContract(contractId), 'Address is not part of contract, cant procede');
+    require(didCallerSignContract(contractId), 'Address is not part of contract');
 
     Contract storage cont = _contracts[contractId];
     for (uint i = 0; i < cont.signerParties.length; i++) {
@@ -274,7 +268,7 @@ contract Escrow {
   }
 
   function getLockedAmountForAddress(uint256 contractId) external view returns(uint256) {
-    require(didCallerSignContract(contractId), 'Address is not part of contract, cant procede');
+    require(didCallerSignContract(contractId), 'Address is not part of contract');
 
     Contract storage cont = _contracts[contractId];
     for (uint i = 0; i < cont.signerParties.length; i++) {
@@ -303,8 +297,16 @@ contract Escrow {
     return total;
   }
 
-  function createContract(string calldata _name, string calldata _description, uint256 numberOfParties, address[] memory _whiteListedParties, uint256 daysToUnlock) external {
-    require(numberOfParties >= 2, 'Number of involved parties must be equal or greater than 2');
+  function createContract(
+      string calldata _name,
+      string calldata _description,
+      uint256 numberOfParties,
+      address[] memory _whiteListedParties,
+      uint256 daysToUnlock,
+      LockConfig[] calldata _lockConfig,
+      WithdrawalConfig[] calldata _withdrawalConfig
+    ) external {
+    require(numberOfParties >= 2, 'Number of parties must be >= 2');
      _contractIdCounter.increment();
     uint256 contractId = _contractIdCounter.current();
     uint creationDate = block.timestamp;
@@ -319,8 +321,15 @@ contract Escrow {
     newContract.whiteListedParties = _whiteListedParties;
     newContract.unlockTime = unlockTime;
     newContract.numberOfParties = numberOfParties;
-    _contracts[contractId] = newContract;
 
+    for (uint i = 0; i < _lockConfig.length; i++) {
+      newContract.lockConfig[i] = _lockConfig[i];
+    }
+    for (uint i = 0; i < _withdrawalConfig.length; i++) {
+      newContract.withdrawalConfig[i] = _withdrawalConfig[i];
+    }
+    
+    _contracts[contractId] = newContract;
     for (uint i = 0; i < _whiteListedParties.length; i++) {
       _addressesToContract[_whiteListedParties[i]].push(contractId);
     }
@@ -369,10 +378,6 @@ contract Escrow {
     });
 
     cont.withdrawalConfig.push(conf);
-  }
-
-  function getContractIdsForAddress() external view returns (uint256[] memory) {
-    return _addressesToContract[msg.sender];  
   }
 
   function getContractsForAddress() external view returns (Contract[] memory) {
