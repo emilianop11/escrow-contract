@@ -19,4 +19,4 @@ npx hardhat run --network localhost scripts/deployLocallyToTestFiume.js
 
 create contract 627,654 gas
 sign contract 205,608 gas (another run was 168,426 gas. idk)
-approve release 54,798 gas
+approve release 54,798 gas (another run was 55,461 gas)
