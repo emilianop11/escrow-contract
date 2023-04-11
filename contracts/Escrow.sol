@@ -239,16 +239,18 @@ contract Escrow {
       for (uint i = 0; i < cont.signerParties.length; i++) {
         if (cont.signerParties[i].partyAddress == msg.sender) {
             require(cont.signerParties[i]._lockedAmount > 0, "all funds for this address have been withdrawn");
-            uint256 withdrawalProportion = getAddressWithdrawProportion(contractId, msg.sender);
-            cont.signerParties[i]._withdrawnAmount = cont.totalContractValue * withdrawalProportion / 1000000;
-            cont.signerParties[i]._lockedAmount = 0;
-            ERC20(warrantyTokenAddress).transfer(msg.sender, cont.signerParties[i]._withdrawnAmount);
-            
-            if (!isContractFullySigned) {
-              cont.totalContractValue -= cont.signerParties[i]._withdrawnAmount;
+            uint256 amtToWithdraw;
+            if (isContractFullySigned) {
+              uint256 withdrawalProportion = getAddressWithdrawProportion(contractId, msg.sender);
+              amtToWithdraw = cont.totalContractValue * withdrawalProportion / 1000000;
+              cont.signerParties[i]._withdrawnAmount = amtToWithdraw;
+            } else {
+              amtToWithdraw = cont.signerParties[i]._lockedAmount;
+              cont.totalContractValue -= amtToWithdraw;
               delete cont.signerParties[i];
             }
-
+            cont.signerParties[i]._lockedAmount = 0;
+            ERC20(warrantyTokenAddress).transfer(msg.sender, amtToWithdraw);
             return;
         }
       }

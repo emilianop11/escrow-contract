@@ -201,6 +201,23 @@ describe('Escrow', function () {
       expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(false);
       expect(await escrow.connect(wallet3).getTotalContractValue(1)).to.equal(0);
     });
+
+    it('should allow wallet 2 to retrieve funds if the contract hasnt been fully signed including withdrawal settings', async function () {
+      await escrow.connect(wallet1).createContract("","",2, [], 1, [],[]);
+      await escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet1.address, 500000);
+      await escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet2.address, 500000);
+
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(false);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+      await escrow.connect(wallet2).adhereToContract(1, 100);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(900);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(true);
+      expect(await escrow.connect(wallet3).getTotalContractValue(1)).to.equal(100);
+      await escrow.connect(wallet2).withdrawFromContract(1);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+      expect(await escrow.connect(wallet2).didCallerSignContract(1)).to.equal(false);
+      expect(await escrow.connect(wallet3).getTotalContractValue(1)).to.equal(0);
+    });
   });
 
 
