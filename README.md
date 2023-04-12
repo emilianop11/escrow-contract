@@ -12,6 +12,8 @@ npx hardhat run scripts/deploy.js --network matic
 npx hardhat run --network localhost scripts/deployLocallyToTestFiume.js
 ```
 
+IMPORTANT: ALWAYS REMEMBER TO UPDATE THE ABI IN FIUME AFTER DEPLOYMENT OF THIS CONTRACT
+
 
 2 febrero 2023: mainnet 0x5091dDf964b1cad7a3b60147D540Fe5a196D4071 
 Deployed commit 95e3d438d604474f3d707e830bed3c66fd3c71c7
