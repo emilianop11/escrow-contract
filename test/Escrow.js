@@ -225,7 +225,7 @@ describe('Escrow', function () {
     it('should check different conditions when wallet 2 and 3 try to adhere to a contract', async function () {
      
       await escrow.connect(wallet1).createContract("","",2, [], 1, [],[]);
-      await expect(escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet2.address, 1e12)).to.be.revertedWith('proportion must be a number greater than 0 and less or equal than 1 million');
+      await expect(escrow.connect(wallet1).setWithdrawalConfigForContract(1, wallet2.address, 1e12)).to.be.revertedWith('proportion must be a positive number and less or equal than 1 million');
     
       await expect(escrow.connect(walletHacker).setWithdrawalConfigForContract(1, wallet2.address, 1e12)).to.be.revertedWith('Contract can only be modified by its creator');
       expect(await escrow.connect(wallet1).getWithdrawalProportionTotalForContract(1)).to.equal(0);
@@ -659,6 +659,35 @@ describe('Escrow', function () {
       
     });
 
+    it('2 parties, all configs passed as parameters in create method. creator is a party (same as above but passing all config in constructor). Testing withdrawal proportion to be set to 0 for an address', async function () {
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(1000);
+      await escrow.connect(wallet1).createContract(
+        "",
+        "",
+        2,
+        [wallet1.address, wallet2.address],
+        1,
+        [{partyAddress: wallet1.address, amountToLock: 200},{partyAddress: wallet2.address, amountToLock: 100}],
+        [{partyAddress: wallet1.address, withdrawalProportion: 0},{partyAddress: wallet2.address, withdrawalProportion: 1000000}],
+      );
+    
+      await escrow.connect(wallet1).adhereToContract(1, 200);
+      await escrow.connect(wallet2).adhereToContract(1, 100);
+
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(800);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(900);
+
+      await escrow.connect(wallet1).approveRelease(1);
+      await escrow.connect(wallet2).approveRelease(1);
+
+      await escrow.connect(wallet1).withdrawFromContract(1);
+      await escrow.connect(wallet2).withdrawFromContract(1);
+      expect(await anyToken.balanceOf(wallet1.address)).to.equal(800);
+      expect(await anyToken.balanceOf(wallet2.address)).to.equal(1200);
+      
+    });
+
     it('should check that create properly errors if wrong config is passed', async function () {
       expect(await anyToken.balanceOf(wallet2.address)).to.equal(1000);
       expect(await anyToken.balanceOf(wallet1.address)).to.equal(1000);
@@ -670,7 +699,7 @@ describe('Escrow', function () {
         1,
         [{partyAddress: wallet1.address, amountToLock: 200},{partyAddress: wallet2.address, amountToLock: 100}],
         [{partyAddress: wallet1.address, withdrawalProportion: 3333334},{partyAddress: wallet2.address, withdrawalProportion: 3666666}],
-      )).to.be.revertedWith("proportion must be a number greater than 0 and less or equal than 1 million");
+      )).to.be.revertedWith("proportion must be a positive number and less or equal than 1 million");
         
       await expect(escrow.connect(wallet1).createContract(
         "",
