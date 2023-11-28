@@ -22,6 +22,19 @@ contract EscrowV2 {
         mapping(address => uint256) depositedAmounts; // Track actual deposited amounts
         mapping(address => bool) hasSigned;
         mapping(address => bool) approvals;
+        mapping(address => bool) hasWithdrawn;
+        mapping(address => bool) hasAdhered;
+        bool anyWithdrawn; // New field to track if any withdrawal has occurred
+    }
+
+    struct ContractDetails {
+        string title;
+        string description;
+        Participant[] participants;
+        uint256 unlockTime;
+        bool unlockAtCreationState;
+        bool isLocked;
+        uint256[] depositedAmounts;
     }
 
     Contract[] public contracts;
@@ -65,6 +78,8 @@ contract EscrowV2 {
     function adhereToContract(uint256 _contractId) public {
         Contract storage c = contracts[_contractId];
         require(c.isLocked == false, "Contract is already locked");
+        require(!c.hasAdhered[msg.sender], "Caller has already adhered");
+        require(!c.anyWithdrawn, "Withdrawal has already occurred");
         require(isParticipant(_contractId, msg.sender), "Caller is not a participant");
 
         uint256 amountToLock;
@@ -87,6 +102,7 @@ contract EscrowV2 {
         if(totalDeposited == getTotalToLock(c)) {
             c.isLocked = true;
         }
+        c.hasAdhered[msg.sender] = true;
     }
 
     function getTotalToLock(Contract storage c) internal view returns (uint256) {
@@ -123,6 +139,7 @@ contract EscrowV2 {
     function withdrawFromContract(uint256 _contractId) public {
         Contract storage c = contracts[_contractId];
         require(isParticipant(_contractId, msg.sender), "Caller is not a participant");
+        require(!c.hasWithdrawn[msg.sender], "Participant has already withdrawn");
 
         uint256 amountToTransfer;
         bool isFullySigned = allParticipantsAdhered(c);
@@ -144,6 +161,8 @@ contract EscrowV2 {
         }
 
         IERC20(c.warrantyTokenAddress).transfer(msg.sender, amountToTransfer);
+        c.hasWithdrawn[msg.sender] = true; // Mark as withdrawn after successful withdrawa
+        c.anyWithdrawn = true; // Mark that a withdrawal has occurred
     }
 
     function getLockedAmount(Contract storage c, address participant) internal view returns (uint256) {
@@ -181,6 +200,50 @@ contract EscrowV2 {
         }
         return true;
     }
-    
+
+    function getContractsForParticipant(address participant) public view returns (ContractDetails[] memory) {
+        uint256 totalContracts = contracts.length;
+        uint256 count = 0;
+
+        // Count the relevant contracts
+        for (uint256 i = 0; i < totalContracts; i++) {
+            for (uint256 j = 0; j < contracts[i].participants.length; j++) {
+                if (contracts[i].participants[j].addr == participant) {
+                    count++;
+                    break;
+                }
+            }
+        }
+
+        ContractDetails[] memory participantContracts = new ContractDetails[](count);
+        count = 0;
+
+        // Populate the result array
+        for (uint256 i = 0; i < totalContracts; i++) {
+            Contract storage c = contracts[i];
+            for (uint256 j = 0; j < c.participants.length; j++) {
+                if (c.participants[j].addr == participant) {
+                    uint256[] memory depositedAmounts = new uint256[](c.participants.length);
+                    for (uint256 k = 0; k < c.participants.length; k++) {
+                        depositedAmounts[k] = c.depositedAmounts[c.participants[k].addr];
+                    }
+                    
+                    participantContracts[count] = ContractDetails({
+                        title: c.title,
+                        description: c.description,
+                        participants: c.participants,
+                        unlockTime: c.unlockTime,
+                        unlockAtCreationState: c.unlockAtCreationState,
+                        isLocked: c.isLocked,
+                        depositedAmounts: depositedAmounts
+                    });
+                    count++;
+                    break;
+                }
+            }
+        }
+
+        return participantContracts;
+    }
 
 }

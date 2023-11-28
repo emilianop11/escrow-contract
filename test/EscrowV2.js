@@ -509,6 +509,110 @@ describe("EscrowV2", function () {
         expect(postAdherenceBalanceWallet1).to.equal(initialBalanceWallet1, "Wallet1 balance should remain unchanged after adherence");
       });
 
+      it("should return the contract structure for a participating address", async function () {
+        // Create a contract
+        const title = "Test Contract";
+        const description = "A test contract";
+        const participants = [
+          { addr: wallet1.address, amountToLock: 100, amountToWithdraw: 50 },
+          { addr: wallet2.address, amountToLock: 200, amountToWithdraw: 250 }
+        ];
+        const unlockTime = (await ethers.provider.getBlock('latest')).timestamp + 600;
+        await escrowV2.createContract(title, description, participants, unlockTime, anyToken.address, true);
+      
+        // Call getContractsForParticipant for wallet1
+        const contractsForWallet1 = await escrowV2.getContractsForParticipant(wallet1.address);
+      
+        // Check that the returned array contains the created contract
+        expect(contractsForWallet1.length).to.equal(1);
+        expect(contractsForWallet1[0].title).to.equal(title);
+        expect(contractsForWallet1[0].description).to.equal(description);
+        // ... add other assertions as necessary to check the contract structure ...
+      });
+
+      it("should return the contract structure for a participating address", async function () {
+        // Create a contract
+        const title = "Test Contract";
+        const description = "A test contract";
+        const participants = [
+          { addr: wallet1.address, amountToLock: 100, amountToWithdraw: 50 },
+          { addr: wallet2.address, amountToLock: 200, amountToWithdraw: 250 }
+        ];
+        const unlockTime = (await ethers.provider.getBlock('latest')).timestamp + 600;
+        await escrowV2.createContract(title, description, participants, unlockTime, anyToken.address, true);
+      
+        const contractsForWallet3 = await escrowV2.getContractsForParticipant(wallet3.address);
+
+        // Check that the returned array is empty
+         expect(contractsForWallet3.length).to.equal(0);
+      });
+      
+      
+      it("should prevent a participant from withdrawing more than once", async function () {
+        // Setup contract with participants
+        const title = "Test Contract";
+        const description = "A test contract for multiple withdrawal prevention";
+        const participants = [
+            { addr: wallet1.address, amountToLock: 250, amountToWithdraw: 250 },
+            { addr: wallet2.address, amountToLock: 250, amountToWithdraw: 250 }
+        ];
+        const unlockTime = (await ethers.provider.getBlock('latest')).timestamp + 600;
+
+        await escrowV2.createContract(title, description, participants, unlockTime, anyToken.address, true);
+
+        // Wallet1 adheres to the contract
+        await escrowV2.connect(wallet1).adhereToContract(0);
+
+        // Perform the first withdrawal
+        await escrowV2.connect(wallet1).withdrawFromContract(0);
+
+        // Attempt a second withdrawal and expect it to fail
+        await expect(escrowV2.connect(wallet1).withdrawFromContract(0))
+            .to.be.revertedWith("Participant has already withdrawn");
+    });
+
+    it("should prevent any participant from adhering after a withdrawal has been made", async function () {
+      // Setup contract with participants
+      const title = "Test Contract";
+      const description = "A test contract for adherence prevention after withdrawal";
+      const participants = [
+          { addr: wallet1.address, amountToLock: 250, amountToWithdraw: 250 },
+          { addr: wallet2.address, amountToLock: 250, amountToWithdraw: 250 }
+      ];
+      const unlockTime = (await ethers.provider.getBlock('latest')).timestamp + 600;
+      
+      await escrowV2.createContract(title, description, participants, unlockTime, anyToken.address, true);
+
+      // Wallet1 adheres to the contract
+      await escrowV2.connect(wallet1).adhereToContract(0);
+
+      // Wallet1 performs a withdrawal
+      await escrowV2.connect(wallet1).withdrawFromContract(0);
+
+      // Attempt to adhere to the contract by Wallet2 and expect it to fail
+      await expect(escrowV2.connect(wallet2).adhereToContract(0))
+          .to.be.revertedWith("Withdrawal has already occurred");
+  });
+
+  it("should prevent a participant from adhering twice to the same contract", async function () {
+    // Setup contract with participants
+    const title = "Test Contract";
+    const description = "A test contract for double adherence prevention";
+    const participants = [
+        { addr: wallet1.address, amountToLock: 250, amountToWithdraw: 250 },
+        { addr: wallet2.address, amountToLock: 250, amountToWithdraw: 250 }
+    ];
+    const unlockTime = (await ethers.provider.getBlock('latest')).timestamp + 600;
+    
+    await escrowV2.createContract(title, description, participants, unlockTime, anyToken.address, true);
+
+    // Wallet1 adheres to the contract
+    await escrowV2.connect(wallet1).adhereToContract(0);
+
+    // Attempt to adhere to the contract again by Wallet1 and expect it to fail
+    await expect(escrowV2.connect(wallet1).adhereToContract(0))
+        .to.be.revertedWith("Caller has already adhered");
+});
 
   // Additional tests to cover other scenarios and edge cases
 });
