@@ -614,5 +614,59 @@ describe("EscrowV2", function () {
         .to.be.revertedWith("Caller has already adhered");
 });
 
+it("should follow the happy path with intermediate checks using getContractsForParticipant", async function () {
+  // Create a contract
+  const title = "Happy Path Test";
+  const description = "Testing the full contract lifecycle";
+  const participants = [
+      { addr: wallet1.address, amountToLock: 100, amountToWithdraw: 50 },
+      { addr: wallet2.address, amountToLock: 200, amountToWithdraw: 250 }
+  ];
+  const unlockTime = (await ethers.provider.getBlock('latest')).timestamp + 600;
+  await escrowV2.createContract(title, description, participants, unlockTime, anyToken.address, true);
+
+  // Check initial state using getContractsForParticipant
+  let contractsForWallet1 = await escrowV2.getContractsForParticipant(wallet1.address);
+  expect(contractsForWallet1.length).to.equal(1);
+  expect(contractsForWallet1[0].isLocked).to.equal(false);
+  // ... additional assertions for initial state ...
+
+  // Wallet1 adheres to the contract
+  await escrowV2.connect(wallet1).adhereToContract(0);
+  
+  // Check state after Wallet1's adherence
+  contractsForWallet1 = await escrowV2.getContractsForParticipant(wallet1.address);
+  expect(contractsForWallet1[0].participants[0].hasAdhered).to.equal(true);
+  // ... additional assertions for state after Wallet1's adherence ...
+
+  // Wallet2 adheres to the contract
+  await escrowV2.connect(wallet2).adhereToContract(0);
+
+  // Check state after Wallet2's adherence
+  contractsForWallet1 = await escrowV2.getContractsForParticipant(wallet1.address);
+  expect(contractsForWallet1[0].isLocked).to.equal(true); // Assuming contract locks after all adhere
+  // ... additional assertions for state after Wallet2's adherence ...
+
+  // Both participants approve the unlock
+  await escrowV2.connect(wallet1).approveUnlock(0);
+  await escrowV2.connect(wallet2).approveUnlock(0);
+
+  // Check state after approvals
+  contractsForWallet1 = await escrowV2.getContractsForParticipant(wallet1.address);
+  expect(contractsForWallet1[0].participants[0].hasApproved).to.equal(true);
+  expect(contractsForWallet1[0].participants[1].hasApproved).to.equal(true);
+  // ... additional assertions for state after approvals ...
+
+  // Perform withdrawals
+  await escrowV2.connect(wallet1).withdrawFromContract(0);
+  await escrowV2.connect(wallet2).withdrawFromContract(0);
+
+  // Check final state
+  contractsForWallet1 = await escrowV2.getContractsForParticipant(wallet1.address);
+  expect(contractsForWallet1[0].participants[0].hasWithdrawn).to.equal(true);
+  expect(contractsForWallet1[0].participants[1].hasWithdrawn).to.equal(true);
+  // ... additional assertions for final state ...
+});
+
   // Additional tests to cover other scenarios and edge cases
 });

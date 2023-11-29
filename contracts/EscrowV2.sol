@@ -27,14 +27,24 @@ contract EscrowV2 {
         bool anyWithdrawn; // New field to track if any withdrawal has occurred
     }
 
-    struct ContractDetails {
+    struct ContractInfo {
         string title;
         string description;
-        Participant[] participants;
+        uint256 contractId;
+        ParticipantInfo[] participants;
         uint256 unlockTime;
         bool unlockAtCreationState;
         bool isLocked;
-        uint256[] depositedAmounts;
+    }
+
+    struct ParticipantInfo {
+        address addr;
+        uint256 amountToLock;
+        uint256 amountToWithdraw;
+        uint256 depositedAmount;
+        bool hasAdhered;
+        bool hasApproved;
+        bool hasWithdrawn;
     }
 
     Contract[] public contracts;
@@ -201,11 +211,11 @@ contract EscrowV2 {
         return true;
     }
 
-    function getContractsForParticipant(address participant) public view returns (ContractDetails[] memory) {
+    function getContractsForParticipant(address participant) public view returns (ContractInfo[] memory) {
         uint256 totalContracts = contracts.length;
         uint256 count = 0;
 
-        // Count the relevant contracts
+        // Count relevant contracts
         for (uint256 i = 0; i < totalContracts; i++) {
             for (uint256 j = 0; j < contracts[i].participants.length; j++) {
                 if (contracts[i].participants[j].addr == participant) {
@@ -215,27 +225,35 @@ contract EscrowV2 {
             }
         }
 
-        ContractDetails[] memory participantContracts = new ContractDetails[](count);
+        ContractInfo[] memory participantContracts = new ContractInfo[](count);
         count = 0;
 
-        // Populate the result array
+        // Populate result array
         for (uint256 i = 0; i < totalContracts; i++) {
             Contract storage c = contracts[i];
             for (uint256 j = 0; j < c.participants.length; j++) {
                 if (c.participants[j].addr == participant) {
-                    uint256[] memory depositedAmounts = new uint256[](c.participants.length);
+                    ParticipantInfo[] memory participantInfos = new ParticipantInfo[](c.participants.length);
                     for (uint256 k = 0; k < c.participants.length; k++) {
-                        depositedAmounts[k] = c.depositedAmounts[c.participants[k].addr];
+                        participantInfos[k] = ParticipantInfo({
+                            addr: c.participants[k].addr,
+                            amountToLock: c.participants[k].amountToLock,
+                            amountToWithdraw: c.participants[k].amountToWithdraw,
+                            depositedAmount: c.depositedAmounts[c.participants[k].addr],
+                            hasAdhered: c.hasAdhered[c.participants[k].addr],
+                            hasApproved: c.approvals[c.participants[k].addr],
+                            hasWithdrawn: c.hasWithdrawn[c.participants[k].addr]
+                        });
                     }
-                    
-                    participantContracts[count] = ContractDetails({
+
+                    participantContracts[count] = ContractInfo({
                         title: c.title,
                         description: c.description,
-                        participants: c.participants,
+                        contractId: c.contractId,
+                        participants: participantInfos,
                         unlockTime: c.unlockTime,
                         unlockAtCreationState: c.unlockAtCreationState,
-                        isLocked: c.isLocked,
-                        depositedAmounts: depositedAmounts
+                        isLocked: c.isLocked
                     });
                     count++;
                     break;
